@@ -1,0 +1,20 @@
+{
+  "finished_utc": "2026-10-02T21:05:16+00:00",
+  "n_input": 12304,
+  "n_kept": 5125,
+  "stages": [
+    "normalize",
+    "boilerplate",
+    "langid",
+    "url_filter",
+    "dedup_exact",
+    "dedup_near",
+    "dedup_line",
+    "quality",
+    "pii"
+  ],
+  "quality_unit": "syllable",
+  "near_dup_unit": "syllable",
+  "langid_backend": "heuristic",
+  "boilerplate_method": "justext"
+}

@@ -1,0 +1,11 @@
+stage,docs_in,docs_out,removed,seconds,top_reason,details,pct_of_input
+input,12304,12304,0,0.0,,,100.0
+normalize,12304,12304,0,304.238,,"{""modified_docs"": 12302, ""legacy_flagged"": 8}",100.0
+langid,12304,10421,1883,53.712,langid_low_score,"{""backend"": ""heuristic"", ""threshold"": 0.6, ""mean_score"": 0.7782899788686607}",84.7
+url_filter,10421,9541,880,4.466,spam_keywords,"{""domain_blocked"": 0, ""keyword_blocked"": 880}",77.54
+dedup_exact,9541,9511,30,15.322,exact_duplicate,"{""exact_duplicates"": 30}",77.3
+dedup_near,9511,9177,334,102.242,near_duplicate,"{""near_duplicates"": 334, ""unit"": ""syllable"", ""ngram"": 5}",74.59
+dedup_line,9177,9177,0,7.527,,"{""removed_lines"": 122365}",74.59
+quality,9177,2300,6877,86.889,gopher_dup_lines,"{""unit"": ""syllable"", ""save_stats"": true, ""prepare_seconds"": 13.5438}",18.69
+pii,2300,2300,0,11.237,,"{""masked_email"": 1803, ""masked_ipv4"": 63, ""masked_phone_vn"": 5154, ""masked_cccd"": 24}",18.69
+export,2300,2300,0,6.958,,,18.69

@@ -1,0 +1,24 @@
+# Thresholds of the quality rules (stage 7).
+# Convention: Gopher rules drop a document when value < min or value > max;
+# fineweb_line_punct drops when value <= min; the other two FineWeb rules drop when value >= max.
+# Current values are the ORIGINAL Gopher / C4 / FineWeb thresholds (designed for English).
+# Weeks 6-10: plot the distributions from outputs/stats/quality_stats.parquet, calibrate for Vietnamese,
+# then record the new values and the rationale in Table A1 of the report.
+
+gopher_word_count:        {min: 50, max: 100000}   # number of "words" (syllables or words, see quality.unit)
+gopher_mean_word_length:  {min: 3, max: 10}        # characters per word; Vietnamese syllables are shorter than English words
+gopher_symbol_ratio:      {max: 0.1}               # (# + "..." + "…") / number of words
+gopher_bullet_lines:      {max: 0.9}               # share of lines starting with a bullet
+gopher_ellipsis_lines:    {max: 0.3}               # share of lines ending with an ellipsis
+gopher_alpha_words:       {min: 0.8}               # share of words containing at least one letter
+gopher_stopwords:         {min: 2}                 # minimum number of distinct stop words (Gopher: 2 English stop words)
+gopher_dup_lines:         {max: 0.3}               # share of duplicated lines
+gopher_dup_paragraphs:    {max: 0.3}               # share of duplicated paragraphs
+gopher_top_2gram:         {max: 0.20}              # character share of the most frequent 2-gram
+gopher_top_3gram:         {max: 0.18}              # ... 3-gram
+gopher_top_4gram:         {max: 0.16}              # ... 4-gram
+c4_lorem_ipsum:           {enabled: true}
+c4_curly_bracket:         {enabled: true}
+fineweb_line_punct:       {min: 0.12}              # drop if the share of lines ending with punctuation <= min
+fineweb_dup_line_chars:   {max: 0.1}               # drop if the share of characters in duplicated lines >= max
+fineweb_short_lines:      {max: 0.67}              # drop if the share of lines shorter than 30 characters >= max

@@ -1,0 +1,18 @@
+rule (% of pages failing),wet,wet_boilerplate,trafilatura
+c4_lorem_ipsum,0.7,0.2,0.2
+c4_curly_bracket,3.3,0.8,0.4
+gopher_word_count,0.0,1.0,3.2
+gopher_mean_word_length,0.8,0.6,2.3
+gopher_symbol_ratio,0.1,0.2,0.5
+gopher_bullet_lines,0.0,0.2,2.1
+gopher_ellipsis_lines,0.0,2.5,3.4
+gopher_alpha_words,2.7,0.4,8.5
+gopher_stopwords,5.7,0.0,11.2
+gopher_dup_lines,27.3,8.4,1.4
+gopher_dup_paragraphs,0.0,0.0,0.2
+gopher_top_2gram,0.4,0.2,0.2
+gopher_top_3gram,1.6,1.0,1.2
+gopher_top_4gram,3.3,1.5,2.1
+fineweb_line_punct,47.0,12.4,16.0
+fineweb_dup_line_chars,45.1,10.7,2.5
+fineweb_short_lines,57.5,13.7,4.6

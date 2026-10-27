@@ -1,0 +1,18 @@
+{
+  "finished_utc": "2026-09-30T18:09:09+00:00",
+  "n_input": 2414,
+  "n_kept": 437,
+  "stages": [
+    "normalize",
+    "langid",
+    "url_filter",
+    "dedup_exact",
+    "dedup_near",
+    "dedup_line",
+    "quality",
+    "pii"
+  ],
+  "quality_unit": "syllable",
+  "near_dup_unit": "syllable",
+  "langid_backend": "heuristic"
+}

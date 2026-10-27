@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vietweb"
+version = "0.1.0"
+description = "Pipeline for collecting, cleaning, and auditing Vietnamese web text from Common Crawl"
+requires-python = ">=3.10"
+readme = "README.md"
+
+[project.scripts]
+vietweb = "vietweb.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

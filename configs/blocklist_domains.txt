@@ -1,0 +1,4 @@
+# Domains removed at stage 5 (one per line; subdomains also match).
+# Starter list for testing; add the UT1 blacklists (adult, gambling) in weeks 8-10:
+# https://dsi.ut-capitole.fr/blacklists/
+example-casino.com

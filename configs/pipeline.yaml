@@ -1,0 +1,134 @@
+# Main pipeline configuration. Relative paths are resolved from the repository root.
+seed: 42
+
+paths:
+  data_dir: data                 # raw and processed data (not tracked by Git)
+  raw_dir: data/raw              # stage 2: raw Parquet, one folder per crawl snapshot
+  processed_dir: data/processed  # stage 9: kept/ and dropped/
+  stats_dir: outputs/stats       # funnel.csv, filter_costs.csv, quality_stats.parquet
+  eval_dir: outputs/eval         # annotation files, comparison results
+  tmp_dir: data/tmp              # temporary WET downloads, deleted after parsing
+  reference_dir: data/reference  # WARC + trafilatura reference texts for the boilerplate experiment
+
+collect:
+  base_url: https://data.commoncrawl.org
+  crawl: CC-MAIN-2026-39
+  language_prefilter: vie        # keep records whose WARC-Identified-Content-Language contains this code
+  sample: random                 # random | first: how WET files are picked from the path list
+  keep_wet: false                # true = keep WET files after parsing (uses disk space)
+  min_chars: 200                 # drop very short records at collection time
+  http:
+    timeout: 120
+    max_retries: 6
+    backoff_seconds: 5           # exponential backoff: 5, 10, 20, ... seconds
+    pause_between_files: 1.0     # pause between files to avoid bursts of requests
+
+# Order of the processing stages (after collection). Reorder for experiments (RQ4).
+stages:
+  - normalize
+  - boilerplate
+  - langid
+  - url_filter
+  - dedup_exact
+  - dedup_near
+  - dedup_line
+  - quality
+  - pii
+
+normalize:
+  fix_mojibake: true             # ftfy
+  unicode_form: NFC
+  tone_mark_style: old           # old: hòa, thủy | new: hoà, thuỷ | none: keep as is
+  legacy_encoding_action: flag   # flag: mark only | drop: remove the document (VNI/TCVN3 conversion planned for weeks 8-10)
+  legacy_encoding_threshold: 0.02
+
+boilerplate:
+  # Stage 3b: remove menus, sidebars and footers from WET text, page by page (see stages/s03b_boilerplate.py)
+  enabled: true
+  method: c4_lines               # justext | c4_lines | none
+  # Chosen on 2026-10-26 from `python -m vietweb extract-eval` (outputs/eval/extraction_eval.md): 3 WARC files,
+  # 737 pages, trafilatura text as reference, character-weighted line F1 over 26 settings:
+  #   c4_lines 0.756 | best jusText 0.730 | previous jusText setting 0.728 | keep everything 0.511
+  # c4_lines minus previous jusText: +0.028 F1 (95% page-bootstrap CI +0.005 to +0.051; optimistic with 3 files).
+  # Pages with main text that the stage drops: 42 of 562 (jusText: 120).
+  # Known costs: lines without terminal punctuation (headings, list items) are dropped; sentence-like boilerplate
+  # ("Chưa có sản phẩm trong giỏ hàng.") is kept and left to the line dedup stages; the quality rules
+  # fineweb_line_punct and fineweb_short_lines become almost inactive. To go back: method: justext.
+  c4_min_words: 5                # c4_lines: minimum syllables per kept line (C4 uses 5 words)
+  c4_drop_ellipsis: true         # c4_lines: also drop lines ending with "..." or "…" (truncated excerpts).
+                                 # Added 2026-10-27: in wet_50_c4, gopher_ellipsis_lines dropped 772 pages because
+                                 # of such lines; on the 3 WARC files: F1 0.750 (vs 0.756), agreement of the pages
+                                 # passing stage 7 with trafilatura 0.666 (vs 0.647)
+  min_chars_after: 200           # both methods: drop the document if less text than this remains
+  # jusText settings (method: justext only). The best grid setting (stopwords_low 0.06) gained +0.002 F1 with a
+  # CI that includes 0, so these values are unchanged.
+  length_low: 70                 # characters; shorter lines are "short" and take the class of their neighbours
+  length_high: 150               # characters; a line this long with enough stop words is "good" on its own
+                                 # (jusText uses 200; with 200, pages whose paragraphs are all 150-199 characters
+                                 # lost every line in the 50-file run)
+  stopwords_low: 0.08            # share of stop-word syllables; below this a line that is not short is "bad"
+  stopwords_high: 0.12           # at or above this a line is "good" (if long) or "near-good"
+  max_url_ratio: 0.3             # a line where URLs make up more than this share of characters is "bad"
+  bad_patterns: ["©", "copyright", "bản quyền", "all rights reserved"]
+
+langid:
+  backend: heuristic             # heuristic | fasttext (lid.176) | glotlid
+  threshold: 0.6                 # minimum score to keep (heuristic: 0-1; fastText/GlotLID: probability)
+  model_path: models/lid.176.bin # used when backend = fasttext or glotlid
+  label: vie                     # Vietnamese labels '__label__vi' (lid.176) and '__label__vie_Latn' (GlotLID) are both recognized
+
+url_filter:
+  domain_blocklist: configs/blocklist_domains.txt
+  keyword_blocklist: configs/blocklist_keywords.txt
+  keyword_min_hits: 3            # drop a document that contains at least this many keyword occurrences
+
+dedup:
+  exact:
+    enabled: true
+  near:
+    enabled: true
+    unit: syllable               # syllable | word | char  (RQ1)
+    ngram: 5                     # 5-grams for syllables/words; use 10-20 for char
+    num_perm: 112
+    bands: 14
+    rows: 8
+  line:
+    enabled: true
+    min_docs_per_domain: 3       # remove a line repeated in >= k documents of the same domain
+    min_domains: 20              # also remove a line found on >= this many domains (CCNet-style; 0 = off).
+                                 # Grows with the sample size: check the removed lines when moving to 200+ files
+    min_line_chars: 10
+
+quality:
+  unit: syllable                 # syllable | word: counting unit for "words" in Gopher rules (RQ1)
+  thresholds_file: configs/vie_thresholds.yaml
+  stopwords_file: configs/stopwords_vi.txt
+  # Rule order; `vietweb order-filters` suggests a cost-optimal order
+  rule_order:
+    - c4_lorem_ipsum
+    - c4_curly_bracket
+    - gopher_word_count
+    - gopher_mean_word_length
+    - gopher_symbol_ratio
+    - gopher_bullet_lines
+    - gopher_ellipsis_lines
+    - gopher_alpha_words
+    - gopher_stopwords
+    - gopher_dup_lines
+    - gopher_dup_paragraphs
+    - gopher_top_2gram
+    - gopher_top_3gram
+    - gopher_top_4gram
+    - fineweb_line_punct
+    - fineweb_dup_line_chars
+    - fineweb_short_lines
+  save_stats: true               # store every metric for every document (for threshold calibration)
+
+pii:
+  email: true
+  ipv4: true
+  phone_vn: true
+  cccd: true
+
+export:
+  shard_size: 20000              # documents per Parquet file

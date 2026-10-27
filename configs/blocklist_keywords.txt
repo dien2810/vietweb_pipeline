@@ -1,0 +1,14 @@
+# Spam keywords (lowercase). A document containing >= url_filter.keyword_min_hits occurrences is removed.
+# Starter list (Vietnamese gambling spam); measure precision on a labeled sample before relying on it.
+nhà cái
+cá cược
+cá độ
+lô đề
+soi cầu
+tài xỉu
+nổ hũ
+bắn cá đổi thưởng
+game bài đổi thưởng
+casino trực tuyến
+link vào
+khuyến mãi nạp đầu
