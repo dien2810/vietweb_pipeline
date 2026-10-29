@@ -26,11 +26,12 @@ def exact_pairs(sets: list[set[str]], threshold: float) -> set[tuple[int, int]]:
 def lsh_pairs(sets: list[set[str]], num_perm: int = 112, bands: int = 14, rows: int = 8) -> set[tuple[int, int]]:
     mh = MinHasher(num_perm)
     lsh = MinHashLSH(num_perm=num_perm, params=(bands, rows))
-    sigs = [mh(s) for s in sets]
-    for i, m in enumerate(sigs):
+    # empty shingle sets all get the same signature and would match each other, so they are left out
+    sigs = {i: mh(s) for i, s in enumerate(sets) if s}
+    for i, m in sigs.items():
         lsh.insert(i, m)
     pairs = set()
-    for i, m in enumerate(sigs):
+    for i, m in sigs.items():
         for j in lsh.query(m):
             if j != i:
                 pairs.add((min(i, j), max(i, j)))

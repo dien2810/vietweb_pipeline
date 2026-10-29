@@ -181,20 +181,20 @@ Luật được kiểm theo thứ tự `quality.rule_order`. Ngưỡng nằm tro
 |---:|---|---|---|---|---|
 | 1 | `c4_lorem_ipsum` | Có chuỗi "lorem ipsum" | có | C4 | gốc |
 | 2 | `c4_curly_bracket` | Có ký tự `{` | có | C4 | cần xem |
-| 3 | `gopher_word_count` | Số âm tiết | `< 50` hoặc `> 100000` | Gopher | gốc |
+| 3 | `gopher_word_count` | Số âm tiết | `< 53` hoặc `> 100000` | Gopher (gốc: 50); hiệu chỉnh ngày 28/10/2026, mục 10 | tạm |
 | 4 | `gopher_mean_word_length` | Số ký tự trung bình mỗi âm tiết | `< 3` hoặc `> 10` | Gopher | cần xem |
 | 5 | `gopher_symbol_ratio` | (số `#` + `...` + `…`) / số âm tiết | `> 0.1` | Gopher | gốc |
 | 6 | `gopher_bullet_lines` | Tỉ lệ dòng bắt đầu bằng ký hiệu đầu dòng | `> 0.9` | Gopher | gốc |
 | 7 | `gopher_ellipsis_lines` | Tỉ lệ dòng kết thúc bằng `...` hoặc `…` | `> 0.3` | Gopher | gốc |
 | 8 | `gopher_alpha_words` | Tỉ lệ từ (tách theo khoảng trắng) có ít nhất một chữ cái | `< 0.8` | Gopher | gốc |
-| 9 | `gopher_stopwords` | Số từ dừng khác nhau (danh sách 53 từ trong `stopwords_vi.txt`) | `< 2` | Gopher (8 từ dừng tiếng Anh) | cần xem |
+| 9 | `gopher_stopwords` | Số từ dừng khác nhau (danh sách 53 từ trong `stopwords_vi.txt`) | `< 4` | Gopher (gốc: 2, trên 8 từ dừng tiếng Anh); hiệu chỉnh ngày 28/10/2026, mục 10 | tạm |
 | 10 | `gopher_dup_lines` | Tỉ lệ dòng trùng trong tài liệu | `> 0.3` | Gopher | cần xem |
 | 11 | `gopher_dup_paragraphs` | Tỉ lệ đoạn trùng (đoạn tách bằng dòng trống) | `> 0.3` | Gopher | cần xem |
 | 12 | `gopher_top_2gram` | Tỉ lệ ký tự thuộc 2-gram âm tiết xuất hiện nhiều nhất | `> 0.20` | Gopher | gốc |
 | 13 | `gopher_top_3gram` | Như trên, 3-gram | `> 0.18` | Gopher | gốc |
 | 14 | `gopher_top_4gram` | Như trên, 4-gram | `> 0.16` | Gopher | gốc |
 | 15 | `fineweb_line_punct` | Tỉ lệ dòng kết thúc bằng dấu câu | `<= 0.12` | FineWeb | cần xem |
-| 16 | `fineweb_dup_line_chars` | Tỉ lệ ký tự nằm trong dòng trùng | `>= 0.1` | FineWeb | cần xem |
+| 16 | `fineweb_dup_line_chars` | Tỉ lệ ký tự nằm trong dòng trùng | tắt (`enabled: false`) | FineWeb (gốc: 0,1); tắt ngày 28/10/2026, mục 7.4 và 10 | tắt |
 | 17 | `fineweb_short_lines` | Tỉ lệ dòng ngắn hơn 30 ký tự | `>= 0.67` | FineWeb | cần xem |
 
 ### 7.2. Số liệu baseline
@@ -246,6 +246,51 @@ Có 1.843 tài liệu vào tầng 7; 1.406 (76,3%) trượt ít nhất một lu�
 6. **Luật 2:** 11 tài liệu bị loại chỉ vì có `{`. Cần xem đó là code thật hay CSS/JS lọt vào WET.
 7. **Chi phí:** luật 8 (2.505 µs/tài liệu) và ba luật n-gram (khoảng 1.500 µs/tài liệu) đắt nhất. Dùng `python -m vietweb order-filters` để có thứ tự tối ưu (RQ4).
 
+### 7.4. Kết quả hiệu chỉnh ngưỡng (RQ1)
+
+Cách làm:
+- Dữ liệu: `wet_200`, sau tầng 3b `c4_lines`.
+- Chia theo file: 150 file đầu là tập dev (dùng để chọn ngưỡng), 50 file sau là tập test (dùng để kiểm tra).
+- Với mỗi luật, gán nhãn các trang **chỉ bị luật đó loại** và các trang được giữ, đều nằm sát ngưỡng (`scripts/calibration_sample.py`).
+- Nhãn: 1 = trang kém, 0 = chấp nhận được. Một người gán nhãn.
+- Quy tắc dời ngưỡng: chỉ dời khi tỉ lệ trang kém trong nhóm đổi trạng thái đạt khoảng 0,8.
+
+| Luật | Ngưỡng gốc → cuối | Dev: tỉ lệ kém ở trang bị loại | Test: tỉ lệ kém ở trang bị loại (khoảng tin cậy 95%) | Test: tỉ lệ kém ở trang được giữ sát ngưỡng |
+|---|---|---|---|---|
+| `gopher_word_count` | `< 50` → `< 53` | 0,79 (39) | 0,87 (13/15; 0,62–0,96) | 0,93 |
+| `gopher_stopwords` | `< 2` → `< 4` | 0,89 (38) | 0,93 (14/15; 0,70–0,99) | 0,80 |
+| `gopher_top_4gram` | `> 0,16` (giữ) | 0,85 (20) | 0,87 (13/15; 0,62–0,96) | 0,67 |
+| `gopher_mean_word_length` | `< 3` (giữ) | 0,75 (20) | 0,73 (11/15; 0,48–0,89) | 0,33 |
+| `fineweb_dup_line_chars` | `≥ 0,1` → tắt | 0,56 (50) | 0,33 (5/15; 0,15–0,58) tại ngưỡng thử 0,23 | 0,47 |
+| `fineweb_line_punct`, `fineweb_short_lines`, `gopher_ellipsis_lines`, `gopher_dup_paragraphs` | giữ | — | — | — |
+
+Nhận xét:
+- Bốn luật FineWeb và Gopher ở dòng cuối gần như không loại trang nào. Tầng 3b `c4_lines` đã làm thay việc của chúng.
+- Trang được giữ ngay trên ngưỡng `gopher_word_count` và `gopher_stopwords` vẫn phần lớn là trang kém (0,80–0,93). Các luật này chỉ loại được trang **rất** ngắn hoặc rất ít từ dừng. Trang ngắn nhưng qua ngưỡng vẫn nhiều rác, nên cần một bộ phân loại chất lượng (ví dụ kiểu FineWeb-Edu) mới xử lý được. Nâng ngưỡng sau khi đã xem tập test thì tập test không còn độc lập nữa.
+- Giới hạn: mỗi ô chỉ 15–50 trang và chỉ một người gán nhãn, nên chưa có κ. Precision chỉ đo trên dải sát ngưỡng, không phải trên toàn bộ dữ liệu.
+- Độ chắc của từng quyết định:
+  - Tắt `fineweb_dup_line_chars` phải đổi khoảng 12 nhãn mới lật.
+  - Hai thay đổi `gopher_word_count` và `gopher_stopwords` chỉ cần đổi 1 nhãn là lật, nhưng mỗi cái chỉ ảnh hưởng dưới 1% dữ liệu.
+  - Với `gopher_mean_word_length`, nếu áp đúng quy tắc 0,8 thì phải nới xuống khoảng 2,95: nhóm 2,956–3,0 có 7/11 trang kém. Ngưỡng vẫn giữ 3, vì thay đổi chỉ khoảng 40 trang và cũng chỉ cần đổi 1 nhãn là lật.
+
+### 7.5. Thứ tự luật theo chi phí (RQ4)
+
+Đo bằng `scripts/time_quality_order.py` trên 28.948 trang vào tầng 7 của `wet_200_final`:
+- Chế độ `save_stats: false`; hai thứ tự chạy xen kẽ 5 lần, lấy trung vị; đo trên máy cá nhân ngày 29/10/2026.
+
+| Thứ tự | Trung vị | ms/tài liệu | Chi phí luật dự tính |
+|---|---:|---:|---:|
+| Hiện tại (`rule_order`) | 42,96 s | 1,484 | 1,075 ms |
+| Theo chi phí, xếp theo (1 − p)/c | 44,22 s | 1,528 | 1,014 ms |
+
+- **Không có lợi ích đo được.** Đo được 0,97 lần; dự tính chỉ 1,06 lần. Chênh lệch nằm trong mức dao động giữa các lần chạy: lần chạy đầu của mỗi thứ tự mất 106 và 118 giây. Tập trang được giữ giống hệt nhau.
+- **Vì sao lợi ích nhỏ:**
+  - Sau tầng 3b và sau khi hiệu chỉnh ngưỡng, luật nào cũng cho qua ít nhất 94% số trang. Gần như mọi trang đều phải qua đủ các luật, nên đổi thứ tự không bớt được bao nhiêu phép tính.
+  - Các luật tốn nhất (`gopher_alpha_words` 608 µs, ba luật n-gram mỗi luật khoảng 320 µs) cho qua 98–99% số trang, nên dù sắp kiểu nào chúng cũng đứng cuối.
+  - Khoảng 28% thời gian tầng 7 là phần tách âm tiết: 1,48 so với 1,075 ms mỗi tài liệu. Phần này không phụ thuộc thứ tự luật.
+- **Cùng phép tính ở `wet_50`** (jusText, ngưỡng gốc, các luật loại nhiều hơn) từng cho dự tính 1,41 lần. Lợi ích biến mất khi tầng 3b đã gánh phần lớn việc lọc.
+- **Tầng 7 chỉ chiếm 5% tổng thời gian** (43/835 giây); tầng chuẩn hóa chiếm 76% (636 giây). Muốn nhanh hơn thì phải tăng tốc tầng chuẩn hóa hoặc chạy song song, và làm cho các chỉ số tốn kém rẻ hơn (ví dụ đếm n-gram một lần cho cả ba luật), chứ không phải đổi thứ tự luật.
+
 ## 8. Tầng 8: PII
 
 Tầng này che thông tin chứ không loại tài liệu. Các mẫu chạy lần lượt theo thứ tự trong bảng; chuỗi đã bị mẫu trước che thì mẫu sau không còn bắt được.
@@ -285,6 +330,9 @@ Mỗi lần đổi ngưỡng, bật/tắt hoặc thêm luật thì ghi một dò
 | 03/10/2026 | tầng 3b (mới) | — → jusText theo dòng: `length_low 70`, `length_high 150`, `stopwords_low 0.08`, `stopwords_high 0.12`, `min_chars_after 200` | Ở `wet_50`, ba luật FineWeb trượt 47–59% vì WET còn menu (mục 7.3). `length_high` hạ từ 200 (giá trị của jusText) xuống 150 để giảm số trang tốt bị xóa sạch: từ 198 xuống 133 trên 2.300 trang được giữ ở `wet_50` | `wet_50_bp` |
 | 26/10/2026 | tầng 3b | jusText (`length_high 150`, `stopwords_low 0.08`, `stopwords_high 0.12`) → `method: c4_lines` (`c4_min_words 5`, `min_chars_after 200`); tham số jusText giữ nguyên để có thể quay lại | `extract-eval` trên 3 file WARC (mục 3b): F1 0,756 so với 0,728 (+0,028, khoảng tin cậy 95% +0,005 đến +0,051); bỏ sót 42 thay vì 120 trên 562 trang có nội dung. Đánh đổi: mất tiêu đề và mục liệt kê, giữ boilerplate dạng câu, `fineweb_line_punct` và `fineweb_short_lines` gần như không còn tác dụng | `wet_50_c4` |
 | 27/10/2026 | tầng 3b, tầng 6 | Thêm `boilerplate.c4_drop_ellipsis: true` và `dedup.line.min_domains: 20` | Chạy thử trên bản sao 50 file, so với `wet_50_c4`. Khi tắt hai luật, kết quả khớp `wet_50_c4` (6.116). Khi bật: giữ 6.501 tài liệu (+385); tầng 7 loại 1.114/7.615 (14,6%, trước là 22,9%); số ký tự giữ lại gần như không đổi (23,8 triệu). Được thêm 505 tài liệu, trong đó 426 trước đây bị `gopher_ellipsis_lines` loại. Mất 120 tài liệu, đọc 8 trang mẫu thì 6 là trang sản phẩm chỉ còn chuỗi giỏ hàng, footer, cờ bạc; 2 là bài viết thật bị luật tầng 7 loại sát ngưỡng (`fineweb_dup_line_chars`, `gopher_top_4gram`) | bản sao 50 file (chưa chạy trên máy) |
+| 28/10/2026 | `gopher_word_count`, `gopher_stopwords` | `min 50` → `53`; `min 2` → `4` | Gán nhãn vòng 1, tập dev (150 file đầu của `wet_200`, 200 trang sát ngưỡng): trang có 50–52 âm tiết kém 16/19, trang có 2–3 từ dừng kém 15/18 (khoảng tin cậy 95% khoảng 0,62–0,95). Giữ nguyên `gopher_mean_word_length` và `gopher_top_4gram`: dời ngưỡng không cải thiện rõ. `fineweb_dup_line_chars` chưa đổi: phía bị loại chỉ 12/20 là trang kém, đang gán nhãn vòng 2 trên dải rộng hơn. Ước tính loại thêm 350 trong 24.621 trang được giữ ở `wet_200` (1,4%) | chưa chạy lại; kiểm tra trên tập test |
+| 28/10/2026 | `fineweb_dup_line_chars`; `gopher_word_count` (xem lại) | `max 0.1` → `0.23`; `gopher_word_count` giữ `53` | Gán nhãn vòng 2 (60 trang, dải rộng hơn). `fineweb_dup_line_chars`: trang chỉ bị luật này loại, giá trị 0,10–0,23, chỉ 28/50 là trang kém, và tỉ lệ này gần như không đổi (0,50–0,56) ở mọi ngưỡng trong dải. Trang tốt bị loại thường chỉ có 2–3 dòng lặp hai lần (mục liệt kê, tiêu đề bài liên quan, dòng đăng ký nhận tin). Ở mức ≥ 0,23, 814/1.077 trang cũng trượt `gopher_dup_lines`. `gopher_word_count`: trang được giữ có 53–66 âm tiết kém 24/31 (0,77), dưới mức 0,8 dùng để dời ngưỡng, nên giữ 53. Quy tắc dời ngưỡng: chỉ dời khi tỉ lệ trang kém trong nhóm đổi trạng thái đạt khoảng 0,8 | chưa chạy lại; kiểm tra trên tập test |
+| 28/10/2026 | `fineweb_dup_line_chars` | `max 0.23` → tắt | Tập test (50 file cuối của `wet_200`): trong 15 trang bị loại sát ngưỡng 0,23, chỉ 5 trang kém (0,33; khoảng tin cậy 95% 0,15–0,58). Ở tập dev, tỉ lệ trang kém cũng không vượt 0,56 ở bất kỳ ngưỡng nào trong dải 0,10–0,23. Trang lặp nhiều vẫn bị `gopher_dup_lines` bắt: ở mức ≥ 0,23, 814/1.077 trang trượt cả luật này. Lưu ý: quyết định tắt luật dùng cả kết quả tập test, nên con số 0,33 không còn là ước lượng độc lập | chưa chạy lại |
 | | | | | |
 
 ## 11. Lịch sử lần chạy
@@ -295,7 +343,100 @@ Mỗi lần đổi ngưỡng, bật/tắt hoặc thêm luật thì ghi một dò
 | `wet_50` | 03/10/2026 | CC-MAIN-2026-39, 50 file WET (gồm 10 file baseline) | Chỉ thêm dữ liệu | 12.304 | 2.300 (18,7%) | Tầng 7 loại 74,9%; tỉ lệ trượt từng luật lệch baseline tối đa 1,8 điểm %. Lọc dòng lặp xóa 122.365 dòng (baseline: 3.930). Near-dup 334, 95% cùng tên miền với bản đại diện |
 | `wet_50_bp` | 03/10/2026 | CC-MAIN-2026-39, 50 file WET | Thêm tầng 3b | 12.304 | 5.125 (41,7%) | Tầng 3b loại 4.507 (1.358 trang có ngôn ngữ chính không phải tiếng Việt); tầng 4 chỉ còn loại 7; tầng 7 loại 26,0%. Đã chạy lại trên máy ngày 03/10/2026: số tài liệu khớp từng tầng; tổng thời gian khoảng 12 phút (tầng 3b 313 giây, chuẩn hóa 258 giây) |
 | `wet_50_c4` | 27/10/2026 | CC-MAIN-2026-39, 50 file WET | Tầng 3b đổi sang `method: c4_lines` | 12.304 | 6.116 (49,7%) | Tầng 3b loại 2.249 (369 trang có ngôn ngữ chính không phải tiếng Việt), chạy 5,8 giây (jusText ở `wet_50_bp`: 313 giây). Tầng 4 loại 1.230, vì tầng 3b không còn gánh việc lọc trang ngoại ngữ. Spam 597; trùng chính xác 127, gần đúng 151. Tầng 7 loại 1.814/7.930 (22,9%): luật loại nhiều nhất là `gopher_ellipsis_lines` (772), `fineweb_line_punct` không loại trang nào. Tổng khoảng 190 giây |
+| `wet_200` | 27/10/2026 | CC-MAIN-2026-39, 200 file WET (gồm 50 file cũ) | `c4_lines` + bỏ dòng "…" + dòng lặp liên website | 48.815 | 24.621 (50,4%) | Tầng 7 loại 14,9%; 73 dòng lặp liên website, tất cả là boilerplate; tổng 717 giây (chuẩn hóa 435 giây) |
+| `wet_200_cal` | 28/10/2026 | Như `wet_200` | Ngưỡng: `gopher_word_count` 53, `gopher_stopwords` 4, `fineweb_dup_line_chars` 0,23 | 48.815 | 25.054 (51,3%) | Khớp số dự tính từ `quality_stats.parquet` |
+| `wet_200_final` | 29/10/2026 | Như `wet_200` | Tắt `fineweb_dup_line_chars` | 48.815 | 25.255 (51,7%) | Tầng 7 loại 3.693/28.948 (12,8%); tổng 835 giây, chuẩn hóa 636 giây (76%), tầng 7 43 giây |
+| `wet_2024_10_50` | 29/10/2026 | CC-MAIN-2024-10, 50 file WET | Như `wet_200_final`; dùng để đối chiếu với FineWeb-2 (mục 12) | 18.576 | 10.050 (54,1%) | Bản crawl này có nhiều bản ghi tiếng Việt hơn trên mỗi file so với CC-MAIN-2026-39 (18.576 so với 12.304 trên 50 file) |
 | | | | | | | |
+
+## 12. Đối chiếu với FineWeb-2 (RQ3)
+
+**Dữ liệu và cách đo:**
+- Lần chạy `wet_2024_10_50`: CC-MAIN-2024-10, 50 file, 18.575 tài liệu (giữ 10.050).
+- Ghép theo URL với FineWeb-2 của cùng bản crawl. FineWeb-2 có 6,35 triệu dòng của bản crawl này: 2,43 triệu ở `vie_Latn`, 3,93 triệu ở `vie_Latn_removed`.
+- Lệnh `fw2-urls` đọc 0,52 GB qua mạng, mất khoảng 2,9 giờ.
+- Kết quả gốc nằm ở `outputs/eval/fineweb2_CC-MAIN-2024-10.md` và `fineweb2_pii_vie_Latn.md`.
+
+**Độ phủ:**
+- **Chỉ 3.096 trong 18.575 URL (16,7%) có trong FineWeb-2.** Trong cùng 50 file WARC, FineWeb-2 chỉ có 3.085 tài liệu tiếng Việt.
+- Giả định, chưa kiểm chứng: phần lớn số còn lại bị FineWeb-2 loại khi khử trùng lặp toàn cục trên 96 bản crawl. Một phần có thể do trafilatura trích ra văn bản rỗng (9% ở thí nghiệm WARC, mục 3b) hoặc do GlotLID không nhận là tiếng Việt.
+- **Bộ lọc sơ bộ CLD2 hầu như không bỏ sót.** Chỉ 14 trong 3.085 tài liệu tiếng Việt của FineWeb-2 trong cùng các file WARC (0,45%) không được pipeline thu thập.
+
+**Đồng thuận trên 3.096 URL có ở cả hai bên:**
+- A = 0,634; κ = 0,31 (mức đồng thuận "khá thấp" theo thang Landis và Koch).
+
+| | FineWeb-2 giữ | FineWeb-2 loại |
+|---|---:|---:|
+| Pipeline giữ | 1.047 | 978 |
+| Pipeline loại | 156 | 915 |
+
+**FineWeb-2 loại nhưng pipeline giữ (978 trang):**
+- Lý do của FineWeb-2: `line_punct_ratio` 588 trang (60%), `gopher_below_alpha_threshold` 257 (26%), các luật khác dưới 5% mỗi luật.
+- Phần lớn bất đồng đến từ khác biệt trong cách trích văn bản:
+  - trafilatura giữ tiêu đề, danh sách, bảng số, nên trang dễ trượt hai luật trên.
+  - `c4_lines` chỉ giữ dòng thành câu, nên văn bản của pipeline luôn qua `line_punct`.
+- Đọc 15 trang mẫu (đánh giá của người làm, chưa gán nhãn chính thức): khoảng một nửa là nội dung dùng được (bài báo thể thao, thông báo của trường, bài phong thủy, mô tả sản phẩm). Nửa còn lại là boilerplate hoặc rác: form mật khẩu, thống kê xổ số, một trang soi kèo mà luật spam bỏ sót.
+
+**FineWeb-2 giữ nhưng pipeline loại (156 trang):**
+- **109 trang (70%) bị luật từ khóa cờ bạc loại.** Cả 6 trang loại này trong mẫu đều là nội dung cờ bạc: bầu cua, lô đề, tài xỉu, soi kèo. Như vậy FineWeb-2 giữ lại nội dung cờ bạc tiếng Việt.
+- 15 trang bị loại vì nhận diện ngôn ngữ, 13 trang vì `c4_curly_bracket`. Trong mẫu:
+  - Phần lớn là trang mà **văn bản WET chứa JavaScript**. Pipeline loại vì nhận ra mã, trong khi FineWeb-2 trích từ HTML nên lấy được nội dung thật. Đây là điểm yếu của cách làm dựa trên WET.
+  - Có 1 trang tiếng Việt thật (trang trợ giúp của Google) bị nhận diện ngôn ngữ bằng heuristic loại nhầm.
+
+**Cả hai cùng loại (915 trang):** cặp lý do thường gặp nhất là `boilerplate_too_short` × `line_punct_ratio` (479 trang). Hai bên loại cùng một kiểu trang (danh mục, menu), chỉ ở hai bước khác nhau.
+
+**Thông tin cá nhân còn lại trong FineWeb-2** (`fw2-pii`, 10.000 tài liệu `vie_Latn`):
+- **7,51% tài liệu có chuỗi khớp mẫu số điện thoại Việt Nam** (1.401 lần khớp).
+- Đọc 25 lần khớp: 24 là số điện thoại thật, 1 là ngày giờ. Khoảng 8 số có vẻ là của cá nhân (bài đăng diễn đàn, "Mr. Mạnh…"); còn lại là hotline doanh nghiệp.
+- Dãy 12 số: 0,02%. Email: 0,05%; thấy cả email thay thế của FineWeb-2 (`firstname.lastname@example.org`).
+- Giới hạn: mẫu lấy từ các nhóm dòng đầu file nên chỉ gồm các bản crawl 2013–2014 và 2023-40.
+
+**Giới hạn chung:**
+- Chỉ một bản crawl, 50 file.
+- Đánh giá trang mẫu là của một người, chưa gán nhãn chính thức.
+- Không lấy văn bản FineWeb-2 để so trực tiếp, chỉ so quyết định giữ/loại theo URL.
+
+## 13. Mức trùng lặp (RQ2)
+
+Số liệu của `wet_200_final` (CC-MAIN-2026-39, 200 file), tính bằng `scripts/dedup_stats.py`. Kết quả gốc nằm ở `outputs/eval/dedup_stats_wet_200_final.md`.
+
+| Mức | Tài liệu vào | Bị loại hoặc bị xóa | Tỉ lệ | Cùng một tên miền |
+|---|---:|---:|---:|---:|
+| Trùng chính xác (SHA-1) | 31.152 | 1.005 bản sao | 3,23% | 89,0% số bản sao |
+| Trùng gần đúng (MinHash-LSH, ngưỡng ≈ 0,72) | 30.147 | 1.013 | 3,36% | 75,0% số cặp |
+| Dòng lặp ≥ 3 trang cùng tên miền | 29.134 | 36.704 dòng | — | 100% (theo định nghĩa) |
+| Dòng lặp ≥ 20 tên miền | 29.134 | 11.394 dòng (73 dòng khác nhau, ở 5.809 tài liệu) | — | 0% (theo định nghĩa) |
+| Tài liệu rỗng sau khi xóa dòng | 29.134 | 186 | 0,64% | — |
+
+Ngoài ra, tầng 3b bỏ 65,7% số ký tự: phần lớn là menu, footer, lặp lại trên mọi trang của một website.
+
+**Tỉ lệ trùng tăng theo lượng dữ liệu** (lấy ngẫu nhiên các tập con lồng nhau của 200 file, 5 lần):
+
+| Số file | Tài liệu | Trùng chính xác | Trùng gần đúng (ước lượng thấp hơn thực tế) |
+|---:|---:|---:|---:|
+| 25 | 3.895 | 0,85% | 0,71% |
+| 50 | 7.802 | 1,31% | 1,09% |
+| 100 | 15.555 | 2,16% | 1,78% |
+| 150 | 23.299 | 2,75% | 2,52% |
+| 200 | 31.152 | 3,23% | 3,36% |
+
+Nhận xét:
+- **Trùng lặp chủ yếu nằm trong cùng một website.** 89% bản sao chính xác và 75% cặp trùng gần đúng thuộc cùng một tên miền. Đó thường là các trang tag hoặc danh mục chỉ còn đoạn giới thiệu chung sau khi bỏ boilerplate.
+- **73,2% trong 19.858 tên miền chỉ có một trang** trong mẫu. Vì vậy luật dòng lặp cùng tên miền chạm được ít trang, còn luật liên website (mục 6) bổ sung cho nó.
+- **Tỉ lệ trùng tăng đều khi tăng số file:** mỗi lần gấp đôi dữ liệu, tỉ lệ tăng khoảng 1,5 lần. Suy ra (giả định, chưa đo): trên cả bản crawl 100.000 file, và khi khử trùng lặp trên nhiều bản crawl như FineWeb-2, tỉ lệ sẽ cao hơn nhiều. Điều này khớp với việc 83% URL của pipeline không có trong FineWeb-2 (mục 12).
+- Giới hạn: với tập con, trùng gần đúng chỉ được tính khi tài liệu được khớp cũng nằm trong tập con, nên con số thấp hơn thực tế. Ở 200 file con số là chính xác.
+
+**Đơn vị shingle** (`dedup-eval`): 3.000 tài liệu đã làm sạch của `wet_200_final`; nhãn đúng là Jaccard chính xác ≥ 0,75 trên mọi cặp. Kết quả nằm ở `outputs/eval/dedup_units.csv`.
+
+| Đơn vị | Cặp đúng | Cặp LSH | Precision | Recall | F1 | Giây |
+|---|---:|---:|---:|---:|---:|---:|
+| 5-gram âm tiết (đang dùng) | 43 | 66 | 0,636 | 0,977 | 0,771 | 251 |
+| 3-gram âm tiết | 55 | 68 | 0,750 | 0,927 | 0,829 | 225 |
+| 15-gram ký tự | 45 | 53 | 0,774 | 0,911 | 0,837 | 1.345 |
+
+- LSH gần như không bỏ sót cặp trùng, nhưng báo cả các cặp có Jaccard dưới 0,75. Lý do: ngưỡng hiệu dụng của cấu hình 14 × 8 (khoảng 0,72) thấp hơn 0,75, và pipeline không kiểm tra lại Jaccard của cặp ứng viên.
+- Chênh lệch F1 giữa các đơn vị chưa đủ để đổi đơn vị, vì mỗi đơn vị chỉ có 43–55 cặp. Đơn vị ký tự chậm hơn khoảng 5 lần.
+- Lần chạy đầu ngày 29/10/2026 (do người làm chạy trên máy cá nhân) cho kết quả sai: mẫu lẫn khoảng 28 trang rỗng (bị xóa sạch ở bước xóa dòng lặp). Các trang rỗng có cùng chữ ký MinHash nên tạo ra khoảng 380 cặp trùng giả. Đã sửa: bỏ trang rỗng khi lấy mẫu, và bỏ tập shingle rỗng trong `lsh_pairs`. Bảng trên là kết quả chạy lại.
 
 ## Nguồn
 

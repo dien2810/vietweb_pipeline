@@ -20,3 +20,8 @@ __pycache__/
 Thumbs.db
 .vscode/
 .idea/
+
+# Logs
+outputs/eval/calibration_dev*.csv
+outputs/eval/calibration_test.csv
+outputs/eval/*_examples.csv

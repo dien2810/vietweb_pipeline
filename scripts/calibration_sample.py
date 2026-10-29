@@ -17,6 +17,12 @@ Run from the repository root:
   # fill the label column: 1 = poor quality (should be dropped), 0 = acceptable
   python scripts/calibration_sample.py --score outputs/eval/calibration_dev.csv
   python scripts/calibration_sample.py --split test           # after changing configs/vie_thresholds.yaml
+
+A further round on the same split: give it a --tag. Documents already in a calibration_<split>*_key.csv file
+are skipped. A bound can name one side only, and --band widens the range sampled, for example
+  python scripts/calibration_sample.py --tag r2 --band 600 --n 30 \
+      --bounds fineweb_dup_line_chars:max:fail,gopher_word_count:min:pass
+  python scripts/calibration_sample.py --score outputs/eval/calibration_dev.csv outputs/eval/calibration_dev_r2.csv
 """
 from __future__ import annotations
 
@@ -100,15 +106,22 @@ def texts(cfg: dict, ids: set[str]) -> pd.DataFrame:
     return pd.concat(out).drop_duplicates("doc_id").set_index("doc_id")
 
 
-def sample(cfg: dict, split: str, n: int, band: int, dev_files: int, bounds: list[str], seed: int) -> None:
+def sample(cfg: dict, split: str, n: int, band: int, dev_files: int, bounds: list[str], seed: int, tag: str) -> None:
+    out = resolve(cfg, cfg["paths"]["eval_dir"])
+    seen = set()
+    for f in out.glob(f"calibration_{split}*_key.csv"):
+        seen |= set(pd.read_csv(f, encoding="utf-8-sig")["doc_id"])
     q, thresholds, rules = load_metrics(cfg)
     file_idx = split_of_docs(cfg)
     q["file_idx"] = q["doc_id"].map(file_idx)
     q = q[(q["file_idx"] < dev_files) if split == "dev" else (q["file_idx"] >= dev_files)]
+    q = q[~q["doc_id"].isin(seen)]
+    if seen:
+        print(f"skipping {len(seen)} documents sampled in earlier rounds")
     rng = np.random.default_rng(seed)
     key = []
     for item in bounds:
-        rule, bound = item.split(":")
+        rule, bound, *only = item.split(":")
         if rule not in rules or bound not in thresholds.get(rule, {}):
             print(f"skip {item}: rule disabled or bound not in vie_thresholds.yaml")
             continue
@@ -117,46 +130,49 @@ def sample(cfg: dict, split: str, n: int, band: int, dev_files: int, bounds: lis
             print(f"skip {item}: no document is dropped by this bound alone")
             continue
         for side, g in (("fail", fail), ("pass", passing)):
+            if only and side != only[0]:
+                continue
             near = g.head(band)
             pick = near.iloc[rng.permutation(len(near))[:n]]
             key += [{"doc_id": d, "rule": rule, "bound": bound, "threshold": thr, "side": side, "value": v}
                     for d, v in zip(pick["doc_id"], pick[f"q_{rule}"])]
-        print(f"{rule} {bound} {thr}: {len(fail)} documents dropped by this bound alone, "
-              f"sampled {min(n, len(fail))} of the {min(band, len(fail))} closest + "
-              f"{min(n, len(passing))} kept documents")
+        took = [f"{min(n, len(g))} of the {min(band, len(g))} {side} documents closest to the threshold"
+                for side, g in (("dropped", fail), ("kept", passing)) if not only or only[0] == {"dropped": "fail", "kept": "pass"}[side]]
+        print(f"{rule} {bound} {thr}: {len(fail)} documents dropped by this bound alone; sampled " + " + ".join(took))
     key = pd.DataFrame(key)
     docs = key.drop_duplicates("doc_id")[["doc_id"]].sample(frac=1, random_state=seed).reset_index(drop=True)
-    docs["id"] = [f"{split}{i + 1:04d}" for i in range(len(docs))]
+    docs["id"] = [f"{split}{tag}{i + 1:04d}" for i in range(len(docs))]
     key = key.merge(docs, on="doc_id")
     t = texts(cfg, set(docs["doc_id"]))
     sheet = docs.assign(url=docs["doc_id"].map(t["url"]),
                         text=docs["doc_id"].map(t["text"]).str.slice(0, TEXT_CHARS),
                         label="", note="")[["id", "url", "text", "label", "note"]]
-    out = resolve(cfg, cfg["paths"]["eval_dir"])
     out.mkdir(parents=True, exist_ok=True)
-    path = out / f"calibration_{split}.csv"
+    name = f"calibration_{split}_{tag}" if tag else f"calibration_{split}"
+    path = out / f"{name}.csv"
     if path.exists() and pd.read_csv(path, encoding="utf-8-sig")["label"].notna().any():
         sys.exit(f"{path} already has labels; rename it first so that they are not overwritten")
     sheet.to_csv(path, index=False, encoding="utf-8-sig")
     key[["id", "doc_id", "rule", "bound", "threshold", "side", "value"]].to_csv(
-        out / f"calibration_{split}_key.csv", index=False, encoding="utf-8-sig")
-    print(f"\n{len(sheet)} documents to label -> {path}\nKey (do not open while labelling) -> "
-          f"{out / f'calibration_{split}_key.csv'}")
+        out / f"{name}_key.csv", index=False, encoding="utf-8-sig")
+    print(f"\n{len(sheet)} documents to label -> {path}\nKey (do not open while labelling) -> {out / f'{name}_key.csv'}")
 
 
-def score(cfg: dict, labels_path: str) -> None:
-    labels = pd.read_csv(labels_path, encoding="utf-8-sig")
-    key = pd.read_csv(str(labels_path).replace(".csv", "_key.csv"), encoding="utf-8-sig")
+def score(cfg: dict, labels_paths: list[str]) -> None:
+    labels = pd.concat(pd.read_csv(p, encoding="utf-8-sig") for p in labels_paths)
+    key = pd.concat(pd.read_csv(str(p).replace(".csv", "_key.csv"), encoding="utf-8-sig") for p in labels_paths)
     df = key.merge(labels[["id", "label"]], on="id")
     df = df[pd.to_numeric(df["label"], errors="coerce").isin([0, 1])].astype({"label": int})
     print(f"Labelled: {df['id'].nunique()} of {labels['id'].nunique()} documents\n")
     q, thresholds, _ = load_metrics(cfg)
     for (rule, bound), g in df.groupby(["rule", "bound"], sort=False):
-        thr = g["threshold"].iloc[0]
+        thr = thresholds[rule][bound]                             # current value in vie_thresholds.yaml
         decide = RULES[rule][1]
         others_pass = q["n_fail"] - q[f"fail_{rule}"] == 0       # this rule decides for these documents
-        f, p = g[g["side"] == "fail"], g[g["side"] == "pass"]
-        print(f"## {rule}, {bound} = {thr}")
+        # sides under the current thresholds (they move when vie_thresholds.yaml changes)
+        f = g[[decide(v, bound_thresholds(thresholds[rule], bound)) for v in g["value"]]]
+        p = g.drop(f.index)
+        print(f"## {rule}, {bound} = {thr} (current)")
         print(f"   dropped side: {len(f)} labelled, share poor = {f['label'].mean():.2f}  (precision of dropping near the threshold)")
         print(f"   kept side:    {len(p)} labelled, share poor = {p['label'].mean():.2f}  (junk kept near the threshold)")
         rows = []
@@ -186,13 +202,14 @@ def main() -> None:
     ap.add_argument("--dev-files", type=int, default=150, help="the first N collected files form the dev split")
     ap.add_argument("--bounds", default=",".join(DEFAULT_BOUNDS), help="rule:min|max, comma separated")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--score", metavar="LABELLED_CSV", help="score a labelled file instead of sampling")
+    ap.add_argument("--tag", default="", help="name of a further sampling round, e.g. r2")
+    ap.add_argument("--score", nargs="+", metavar="LABELLED_CSV", help="score labelled files instead of sampling")
     a = ap.parse_args()
     cfg = load_config(a.config)
     if a.score:
         score(cfg, a.score)
     else:
-        sample(cfg, a.split, a.n, a.band, a.dev_files, a.bounds.split(","), a.seed)
+        sample(cfg, a.split, a.n, a.band, a.dev_files, a.bounds.split(","), a.seed, a.tag)
 
 
 if __name__ == "__main__":

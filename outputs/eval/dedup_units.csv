@@ -1,0 +1,4 @@
+unit,true_pairs,lsh_pairs,precision,recall,f1,seconds
+syllable-3,55,68,0.75,0.9273,0.8293,225.4
+syllable-5,43,66,0.6364,0.9767,0.7706,251.27
+char-15,45,53,0.7736,0.9111,0.8367,1344.6

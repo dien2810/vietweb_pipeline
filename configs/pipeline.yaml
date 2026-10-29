@@ -9,6 +9,7 @@ paths:
   eval_dir: outputs/eval         # annotation files, comparison results
   tmp_dir: data/tmp              # temporary WET downloads, deleted after parsing
   reference_dir: data/reference  # WARC + trafilatura reference texts for the boilerplate experiment
+  fineweb2_dir: data/fineweb2    # FineWeb-2 URLs of one snapshot (fw2-urls), for the comparison (RQ3)
 
 collect:
   base_url: https://data.commoncrawl.org

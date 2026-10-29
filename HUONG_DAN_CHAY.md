@@ -269,7 +269,17 @@ Kết quả: `outputs\eval\calibration_dev.csv` (200 trang) và `calibration_dev
 Mở `calibration_dev.csv` bằng Excel và điền cột `label` cho từng dòng:
 - `1`: kém chất lượng, nên loại. Ví dụ: danh sách sản phẩm và giá, menu, bảng số, chuỗi giao diện website, spam, văn bản vô nghĩa hoặc dịch máy.
 - `0`: chấp nhận được.
-- Khi phân vân, tự hỏi: *nếu bỏ trang này, tập dữ liệu có mất một đoạn văn tiếng Việt có ích không?* Có thì điền 0, không thì điền 1.
+- **Trang lẫn** (vừa có đoạn văn có ích, vừa có nhiều bảng giá, danh sách, menu): ước lượng theo độ dài.
+  - Phần văn bản có ích chiếm khoảng một nửa trở lên: `0`. Ít hơn: `1`.
+  - Ghi `lẫn` vào cột `note`.
+  - Nhãn là quyết định giữ hay bỏ **cả trang**, vì tầng 7 không xóa được từng dòng.
+- Trang không có nhiều rác mà vẫn phân vân: tự hỏi *nếu bỏ trang này, tập dữ liệu có mất một đoạn văn tiếng Việt có ích không?* Có thì điền 0, không thì điền 1.
+- Văn bản trong file chỉ hiện tối đa 2.000 ký tự đầu. Chấm theo phần hiện ra; nếu phần đó không đủ để quyết thì bỏ trống.
+- **Trang quảng cáo sản phẩm:** chấm theo chất lượng văn bản, không theo chủ đề.
+  - Viết thành đoạn văn, có thông tin (tính năng, cách dùng, đánh giá): `0`.
+  - Chủ yếu là tên sản phẩm, giá, "Mua ngay", thông số rời rạc, nhồi từ khóa: `1`.
+  - Cờ bạc, hoặc quảng cáo kiểu "khỏi bệnh 100%": `1`.
+  - Mọi trang quảng cáo đều ghi `qc` vào cột `note`, để sau này đếm riêng.
 - Cột `note` để ghi chú tùy ý. Bỏ trống `label` nếu không quyết được; dòng trống không được tính.
 
 Khi lưu, chọn **CSV UTF-8 (Comma delimited)**. Lưu kiểu CSV thường sẽ làm hỏng chữ tiếng Việt.
@@ -292,6 +302,15 @@ Chọn ngưỡng:
 - Nếu phía được giữ còn nhiều trang kém, siết ngưỡng lại.
 - Precision chỉ đo trên dải sát ngưỡng và hai phía được lấy mẫu bằng nhau, nên chỉ dùng làm định hướng. Không coi đó là precision trên toàn bộ dữ liệu.
 
+**Vòng gán nhãn thêm:** dùng khi một luật cần nhãn ở dải rộng hơn. Ví dụ vòng 2 ngày 28/10/2026 (60 trang). Các trang đã gán nhãn ở vòng trước được tự động bỏ qua.
+
+```powershell
+python scripts\calibration_sample.py --tag r2 --band 600 --n 30 --bounds fineweb_dup_line_chars:max:fail,gopher_word_count:min:pass
+python scripts\calibration_sample.py --score outputs\eval\calibration_dev.csv outputs\eval\calibration_dev_r2.csv
+```
+
+Bảng điểm luôn tính theo ngưỡng đang có trong `vie_thresholds.yaml`. Sửa ngưỡng xong không cần chạy lại pipeline mới xem được điểm, vì giá trị chỉ số của mọi trang đã lưu trong `quality_stats.parquet`.
+
 ### Bước 4. Áp dụng và kiểm tra
 
 1. Sửa `configs\vie_thresholds.yaml` và ghi lý do vào `LUAT_LOC.md` (mục 10).
@@ -302,7 +321,88 @@ Chọn ngưỡng:
    python scripts\calibration_sample.py --score outputs\eval\calibration_test.csv
    ```
    Số liệu trên tập test này là số đưa vào báo cáo.
-4. Sau đó chạy `python -m vietweb order-filters` (RQ4), vì thứ tự tối ưu phụ thuộc vào tỉ lệ qua của từng luật sau khi đã đổi ngưỡng.
+4. RQ4: đo thời gian tầng 7 với thứ tự luật hiện tại và thứ tự theo chi phí. Không cần chạy lại cả pipeline:
+   ```powershell
+   python scripts\time_quality_order.py --repeats 5
+   ```
+   - Script dùng ngưỡng hiện có trong `vie_thresholds.yaml` và các trang đã vào tầng 7 ở lần chạy gần nhất.
+   - Hai thứ tự được chạy xen kẽ, báo cáo trung vị.
+   - Script kiểm tra luôn rằng tập trang được giữ không đổi giữa hai thứ tự.
+   - Nên chạy khi máy rảnh: các lần đo dao động nhiều nếu máy đang làm việc khác.
+
+## 5d. Đối chiếu với FineWeb-2 (RQ3)
+
+FineWeb-2 chỉ gồm các bản crawl đến tháng 4/2024, không có CC-MAIN-2026-39. Vì vậy cần chạy pipeline trên một bản crawl cũ rồi ghép với FineWeb-2 theo URL.
+
+Kích thước dữ liệu tiếng Việt của FineWeb-2:
+- `vie_Latn` (trang được giữ): khoảng 130 GB, 30 file.
+- `vie_Latn_removed` (trang bị bộ lọc của FineWeb-2 loại): khoảng 178 GB, 45 file.
+- Các file không chia theo bản crawl. Lệnh `fw2-urls` không tải cả file mà chỉ đọc qua mạng ba cột `url`, `dump`, `file_path`, rồi giữ các dòng của đúng một bản crawl.
+
+### Bước 1. Thu thập và chạy pipeline trên bản crawl cũ
+
+```powershell
+python -m vietweb collect --crawl CC-MAIN-2024-10 --n-files 50
+python -m vietweb run --crawl CC-MAIN-2024-10
+$name = "wet_2024_10_50"
+Copy-Item -Recurse outputs\stats "outputs\runs\$name"
+Copy-Item -Recurse data\processed "outputs\runs\$name\processed"
+```
+
+Lệnh `run` ghi đè `data\processed`; kết quả 200 file đã được sao lưu ở `outputs\runs\wet_200_final`.
+
+### Bước 2. Đọc URL từ FineWeb-2
+
+Cần mạng và thư viện `huggingface_hub`:
+
+```powershell
+pip install huggingface_hub
+python -m vietweb fw2-urls --dump CC-MAIN-2024-10 --probe
+```
+
+Lệnh `--probe` chỉ đọc phần cuối (footer) của một file mỗi tập con. Nó in ra:
+- Các cột của file. Xem tập `vie_Latn_removed` có cột ghi lý do bị loại không.
+- Số nhóm dòng (row group) phải đọc.
+- **Dung lượng ước tính phải tải qua mạng** (`estimated_transfer_gb`).
+
+Nếu dung lượng chấp nhận được thì chạy thật:
+
+```powershell
+python -m vietweb fw2-urls --dump CC-MAIN-2024-10
+```
+
+- Kết quả nằm trong `data\fineweb2\CC-MAIN-2024-10\`.
+- File nào xong được ghi vào `_manifest.jsonl`. Nếu lệnh bị ngắt, chạy lại sẽ tiếp tục từ file chưa xong.
+- Muốn thử trước trên một file mỗi tập con: thêm `--max-files 1`.
+- Nếu bị lỗi 429 (quá nhiều yêu cầu): đăng nhập bằng `huggingface-cli login` rồi chạy lại.
+
+### Bước 3. So sánh và kiểm tra thông tin cá nhân
+
+```powershell
+python -m vietweb fw2-compare --dump CC-MAIN-2024-10
+python -m vietweb fw2-pii --n 10000
+```
+
+`fw2-compare` ghi kết quả vào `outputs\eval\fineweb2_CC-MAIN-2024-10.md`:
+- Mức đồng thuận A và κ trên các URL có ở cả hai bên.
+- Bảng chéo giữa quyết định của pipeline và của FineWeb-2.
+- Các trang FineWeb-2 giữ mà pipeline loại, tách theo lý do loại.
+- Số URL của pipeline không có trong FineWeb-2, do khử trùng lặp toàn cục hoặc do không được nhận là `vie_Latn`.
+- Số trang tiếng Việt FineWeb-2 có trong cùng các file WARC nhưng pipeline chưa từng thu thập. Đây là số trang bộ lọc sơ bộ CLD2 (hoặc điều kiện ≥ 200 ký tự) bỏ sót.
+
+File `fineweb2_CC-MAIN-2024-10_examples.csv` có mẫu từng nhóm bất đồng để đọc tay.
+
+`fw2-pii` đọc văn bản của 10.000 tài liệu `vie_Latn`, lấy rải từ 10 file, rồi đếm các mẫu PII của tầng 8. FineWeb-2 chỉ ẩn email và IP, nên số điện thoại và dãy 12 số là phần đáng xem.
+
+## 5e. Mức trùng lặp (RQ2) và đơn vị shingle
+
+```powershell
+python scripts\dedup_stats.py --run outputs\runs\wet_200_final --crawl CC-MAIN-2026-39
+python -m vietweb dedup-eval --n 3000 --units syllable:3,syllable:5,char:15 --processed-dir outputs\runs\wet_200_final\processed
+```
+
+- `dedup_stats.py` (vài giây): tóm tắt ba mức trùng lặp, tỉ lệ trùng trong cùng website, và tỉ lệ trùng theo số file → `outputs\eval\dedup_stats_wet_200_final.md` (kết quả đã ghi ở `LUAT_LOC.md`, mục 13).
+- `dedup-eval`: với mỗi đơn vị shingle, so MinHash-LSH với Jaccard chính xác trên mọi cặp của 3.000 tài liệu đã làm sạch → precision, recall, F1 và thời gian → `outputs\eval\dedup_units.csv`. Số cặp tăng theo bình phương số tài liệu: ước tính 20–30 phút, phần lớn cho `char:15`. Thêm `word:5` nếu đã cài `underthesea`.
 
 ## 6. Lịch công việc theo tuần
 
@@ -396,7 +496,7 @@ python -c "from vietweb.spark_runner import run_per_doc_stages_spark; run_per_do
 | Nhận diện ngôn ngữ | `heuristic` chạy được; `fasttext`/`glotlid` đã viết, cần tải mô hình |
 | Lọc URL / từ khóa | Chạy được; danh sách còn sơ sài |
 | Khử trùng lặp chính xác, MinHash-LSH, cấp dòng | Chạy được trong bộ nhớ; bản Spark chưa viết |
-| 17 luật chất lượng + đo chi phí từng luật | Chạy được; ngưỡng đang là ngưỡng gốc tiếng Anh |
+| 17 luật chất lượng + đo chi phí từng luật | Chạy được; đã hiệu chỉnh trên 200 file ngày 28/10/2026: đổi 2 ngưỡng, tắt `fineweb_dup_line_chars` (`LUAT_LOC.md`, mục 7.4) |
 | Che PII (email, IPv4, số điện thoại, CCCD) | Chạy được; cần đo tỉ lệ nhận nhầm |
 | Funnel, xuất Parquet, kiểm tra đầu ra | Chạy được |
 | Gợi ý thứ tự luật (RQ4) | Chạy được |

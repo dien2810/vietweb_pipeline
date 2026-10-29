@@ -13,6 +13,9 @@ Commands, in the order they are usually used:
   dedup-eval      RQ1: compare shingling units on a subset
   reference       Download WARC files for collected WET files and extract them with trafilatura
   extract-eval    Compare boilerplate removal (stage 3b) with the trafilatura reference
+  fw2-urls        RQ3: read the URLs of one snapshot from FineWeb-2 vie_Latn / vie_Latn_removed (needs internet)
+  fw2-compare     RQ3: compare our keep/drop decisions with FineWeb-2 by URL
+  fw2-pii         RQ3: count personal-data patterns in a sample of FineWeb-2 vie_Latn
 """
 from __future__ import annotations
 
@@ -30,7 +33,7 @@ from .config import load_config, resolve
 def _setup_logging(verbose: bool) -> None:
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO,
                         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s", datefmt="%H:%M:%S")
-    for noisy in ("urllib3", "requests"):
+    for noisy in ("urllib3", "requests", "httpx", "httpcore", "huggingface_hub", "fsspec"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
@@ -55,11 +58,23 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("score-labels"); p.add_argument("csv")
     p = sub.add_parser("dedup-eval"); p.add_argument("--n", type=int, default=2000)
     p.add_argument("--units", default="syllable:5,char:15", help="e.g. syllable:5,word:5,char:15")
+    p.add_argument("--processed-dir", help="sample cleaned texts that reached deduplication from this processed "
+                   "folder (e.g. outputs/runs/wet_200_final/processed) instead of raw WET text")
     p = sub.add_parser("reference", help="download WARC files for collected WET files and extract them with trafilatura")
     p.add_argument("--n-files", type=int, required=True); p.add_argument("--crawl")
     p.add_argument("--keep-warc", action="store_true", help="keep the downloaded WARC files (about 1 GB each)")
     p = sub.add_parser("extract-eval", help="compare boilerplate removal with the trafilatura reference")
     p.add_argument("--crawl")
+    p = sub.add_parser("fw2-urls", help="RQ3: read the URLs of one snapshot from FineWeb-2 (needs internet)")
+    p.add_argument("--dump", required=True, help="Common Crawl snapshot, e.g. CC-MAIN-2024-10")
+    p.add_argument("--probe", action="store_true", help="read only the file footers and estimate the transfer")
+    p.add_argument("--subsets", default="vie_Latn,vie_Latn_removed")
+    p.add_argument("--max-files", type=int, help="only the first N files of each subset (trial)")
+    p = sub.add_parser("fw2-compare", help="RQ3: compare keep/drop decisions with FineWeb-2 by URL")
+    p.add_argument("--dump", required=True)
+    p = sub.add_parser("fw2-pii", help="RQ3: personal-data patterns in a sample of FineWeb-2 vie_Latn (needs internet)")
+    p.add_argument("--n", type=int, default=10000)
+    p.add_argument("--files", type=int, default=10, help="spread the sample over this many files")
 
     args = ap.parse_args(argv)
     _setup_logging(args.verbose)
@@ -127,7 +142,16 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "dedup-eval":
         from .eval.dedup_eval import compare_units
         from .io.storage import read_raw
-        df = read_raw(resolve(cfg, cfg["paths"]["raw_dir"]))
+        if args.processed_dir:
+            d = Path(args.processed_dir)
+            kept = [pd.read_parquet(f, columns=["text"]) for f in sorted((d / "kept").glob("*.parquet"))]
+            dropped = [pd.read_parquet(f, columns=["text", "drop_stage"]) for f in sorted((d / "dropped").glob("*.parquet"))]
+            # documents as they entered deduplication; those emptied by the line stage are left out
+            dropped = [x[x["drop_stage"].isin(["dedup_exact", "dedup_near", "quality"])] for x in dropped]
+            df = pd.concat(kept + dropped, ignore_index=True)
+            df = df[df["text"].str.len() >= 200]
+        else:
+            df = read_raw(resolve(cfg, cfg["paths"]["raw_dir"]))
         texts = df.sample(n=min(args.n, len(df)), random_state=cfg.get("seed", 42))["text"].tolist()
         units = [(u.split(":")[0], int(u.split(":")[1])) for u in args.units.split(",")]
         res = compare_units(texts, units)
@@ -144,6 +168,18 @@ def main(argv: list[str] | None = None) -> int:
         from .eval.extraction_eval import evaluate
         print(evaluate(cfg, args.crawl))
         print(f"Written: {resolve(cfg, cfg['paths']['eval_dir'])}/extraction_*.csv and extraction_eval.md")
+
+    elif args.cmd == "fw2-urls":
+        from .eval.fineweb2 import fw2_urls
+        print(json.dumps(fw2_urls(cfg, args.dump, args.subsets.split(","), args.probe, args.max_files), indent=2))
+
+    elif args.cmd == "fw2-compare":
+        from .eval.fineweb2 import compare
+        print(compare(cfg, args.dump))
+
+    elif args.cmd == "fw2-pii":
+        from .eval.fineweb2 import fw2_pii
+        print(fw2_pii(cfg, args.n, n_files=args.files))
     return 0
 
 

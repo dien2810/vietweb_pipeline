@@ -5,13 +5,15 @@
 # Weeks 6-10: plot the distributions from outputs/stats/quality_stats.parquet, calibrate for Vietnamese,
 # then record the new values and the rationale in Table A1 of the report.
 
-gopher_word_count:        {min: 50, max: 100000}   # number of "words" (syllables or words, see quality.unit)
+gopher_word_count:        {min: 53, max: 100000}   # number of "words" (syllables or words, see quality.unit)
+                                                   # 2026-10-28: 50 -> 53 (labels, dev split: pages with 50-52 syllables were 16/19 poor)
 gopher_mean_word_length:  {min: 3, max: 10}        # characters per word; Vietnamese syllables are shorter than English words
 gopher_symbol_ratio:      {max: 0.1}               # (# + "..." + "…") / number of words
 gopher_bullet_lines:      {max: 0.9}               # share of lines starting with a bullet
 gopher_ellipsis_lines:    {max: 0.3}               # share of lines ending with an ellipsis
 gopher_alpha_words:       {min: 0.8}               # share of words containing at least one letter
-gopher_stopwords:         {min: 2}                 # minimum number of distinct stop words (Gopher: 2 English stop words)
+gopher_stopwords:         {min: 4}                 # minimum number of distinct stop words (Gopher: 2 English stop words)
+                                                   # 2026-10-28: 2 -> 4 (labels, dev split: pages with 2-3 stop words were 15/18 poor)
 gopher_dup_lines:         {max: 0.3}               # share of duplicated lines
 gopher_dup_paragraphs:    {max: 0.3}               # share of duplicated paragraphs
 gopher_top_2gram:         {max: 0.20}              # character share of the most frequent 2-gram
@@ -20,5 +22,9 @@ gopher_top_4gram:         {max: 0.16}              # ... 4-gram
 c4_lorem_ipsum:           {enabled: true}
 c4_curly_bracket:         {enabled: true}
 fineweb_line_punct:       {min: 0.12}              # drop if the share of lines ending with punctuation <= min
-fineweb_dup_line_chars:   {max: 0.1}               # drop if the share of characters in duplicated lines >= max
+fineweb_dup_line_chars:   {max: 0.23, enabled: false}  # drop if the share of characters in duplicated lines >= max
+                                                   # 2026-10-28: disabled. Test split: only 5/15 pages dropped near 0.23 were poor;
+                                                   # heavy repetition is still caught by gopher_dup_lines
+                                                   # 2026-10-28: 0.1 -> 0.23 (labels, dev split: pages dropped by this rule alone
+                                                   # with values 0.10-0.23 were only 28/50 poor, at every cut-off in that range)
 fineweb_short_lines:      {max: 0.67}              # drop if the share of lines shorter than 30 characters >= max
