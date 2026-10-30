@@ -1,10 +1,10 @@
-"""SKELETON (weeks 8-10): orchestration with Prefect.
+"""Skeleton of an orchestration with Prefect.
 
 Install: pip install prefect
 Trial run: python flows/pipeline_flow.py
 Each task calls the same functions as the CLI, so results match manual runs; Prefect adds
 retries on failure, per-run logs, and scheduling.
-This file is NOT tested yet.
+This file is not covered by the tests and was not used for the results.
 """
 from prefect import flow, task
 

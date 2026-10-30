@@ -8,8 +8,8 @@ Commands, in the order they are usually used:
   status          Show how much has been collected and the funnel of the latest run
   peek            Print a few kept / removed documents for manual inspection
   order-filters   RQ4: suggest a quality-rule order based on cost
-  sample-labels   Sample documents for manual annotation
-  score-labels    Compute precision and Cohen's kappa from an annotated file
+  sample-labels   Sample documents per removal reason for manual labelling
+  score-labels    Share of poor pages per removal reason in a labelled file
   dedup-eval      RQ1: compare shingling units on a subset
   reference       Download WARC files for collected WET files and extract them with trafilatura
   extract-eval    Compare boilerplate removal (stage 3b) with the trafilatura reference

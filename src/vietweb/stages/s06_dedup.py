@@ -1,17 +1,19 @@
 """Stage 6: exact, near-duplicate (MinHash-LSH), and line-level deduplication.
 
-This version runs in memory, which is enough for the pilot (tens of thousands of documents).
-Weeks 8-10: move MinHash-LSH to Spark (see src/vietweb/spark_runner.py) for larger data.
+This version runs in memory (about 250,000 documents in the 1,000-file run). For larger data,
+src/vietweb/spark_runner.py runs the same deduplication on Spark.
 """
 from __future__ import annotations
 
 import hashlib
 import re
 from collections import Counter
+from functools import lru_cache, partial
 
 import pandas as pd
 from datasketch import MinHash, MinHashLSH
 
+from ..parallel import pmap
 from ..text.tokenize import shingles
 from .base import StageResult
 
@@ -44,6 +46,21 @@ class MinHasher:
         m.update_batch([s.encode("utf-8") for s in shingle_set])
         return m
 
+    def from_values(self, hashvalues) -> MinHash:
+        """Rebuild a signature computed elsewhere (in a worker process)."""
+        return MinHash(num_perm=self.num_perm, seed=self.seed, hashvalues=hashvalues, **self._kw)
+
+
+@lru_cache(maxsize=4)
+def _hasher(num_perm: int) -> MinHasher:
+    return MinHasher(num_perm)
+
+
+def signature(text: str, unit: str, n: int, num_perm: int):
+    """MinHash values of one document. Runs in worker processes when parallel.workers > 1; the LSH index
+    itself is filled in order in the main process, so the result does not depend on the number of workers."""
+    return _hasher(num_perm)(shingles(text, unit, n)).hashvalues
+
 
 def run_near(df: pd.DataFrame, cfg: dict) -> StageResult:
     """MinHash-LSH with b bands x r rows. A document similar to an already kept document is removed.
@@ -58,8 +75,10 @@ def run_near(df: pd.DataFrame, cfg: dict) -> StageResult:
     drop = pd.Series([None] * len(df), index=df.index, dtype=object)
     cluster = pd.Series([None] * len(df), index=df.index, dtype=object)
     minhash = MinHasher(num_perm)
-    for idx, text in df["text"].items():
-        m = minhash(shingles(text, c.get("unit", "syllable"), c.get("ngram", 5)))
+    sigs = pmap(partial(signature, unit=c.get("unit", "syllable"), n=c.get("ngram", 5), num_perm=num_perm),
+                df["text"].tolist(), cfg)
+    for idx, hv in zip(df.index, sigs):
+        m = minhash.from_values(hv)
         hits = lsh.query(m)
         if hits:
             drop[idx] = "near_duplicate"

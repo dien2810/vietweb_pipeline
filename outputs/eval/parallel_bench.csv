@@ -1,0 +1,12 @@
+stage,workers,seconds,ms_per_doc,docs_per_s,speedup_vs_1_process,speedup_vs_before
+normalize (ftfy on whole text),1,143.58,14.358,69.6,1.0,1.0
+normalize (ftfy by line),1,29.05,2.905,344.3,1.0,4.94
+boilerplate,1,2.48,0.248,4035.3,1.0,
+normalize (ftfy by line),2,11.94,1.194,837.7,2.43,12.03
+boilerplate,2,1.57,0.157,6352.4,1.57,
+normalize (ftfy by line),4,7.44,0.744,1343.4,3.9,19.29
+boilerplate,4,1.03,0.103,9714.8,2.41,
+normalize (ftfy by line),8,5.76,0.576,1736.6,5.04,24.93
+boilerplate,8,0.85,0.085,11742.0,2.91,
+normalize (ftfy by line),12,7.36,0.736,1359.2,3.95,19.52
+boilerplate,12,1.13,0.113,8865.3,2.2,

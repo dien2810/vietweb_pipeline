@@ -1,38 +1,38 @@
-Run finished 2026-10-28T17:07:25+00:00 (UTC): 48815 documents in, 25255 kept; langid=heuristic, quality unit=syllable, near-dup unit=syllable.
+Run: 246833 documents in, 118069 kept; langid=heuristic, quality unit=syllable, near-dup unit=syllable.
 
 ## Funnel
 
 | Stage | In | Removed | Kept (% of input) | Top reason | Seconds |
 |---|---:|---:|---:|---|---:|
-| normalize | 48815 | 0 | 100.0% |  | 636.0 |
-| boilerplate | 48815 | 11359 | 76.73% | boilerplate_too_short | 42.1 |
-| langid | 37456 | 4060 | 68.41% | langid_low_score | 24.4 |
-| url_filter | 33396 | 2244 | 63.82% | spam_keywords | 2.8 |
-| dedup_exact | 31152 | 1005 | 61.76% | exact_duplicate | 6.9 |
-| dedup_near | 30147 | 1013 | 59.68% | near_duplicate | 51.5 |
-| dedup_line | 29134 | 186 | 59.3% | empty_after_line_dedup | 3.1 |
-| quality | 28948 | 3693 | 51.74% | gopher_word_count | 43.3 |
-| pii | 25255 | 0 | 51.74% |  | 15.6 |
+| normalize | 246833 | 0 | 100.0% |  | 476.9 |
+| boilerplate | 246833 | 57158 | 76.84% | boilerplate_too_short | 89.2 |
+| langid | 189675 | 20513 | 68.53% | langid_low_score | 73.2 |
+| url_filter | 169162 | 11475 | 63.88% | spam_keywords | 18.1 |
+| dedup_exact | 157687 | 10480 | 59.64% | exact_duplicate | 38.3 |
+| dedup_near | 147207 | 9470 | 55.8% | near_duplicate | 130.1 |
+| dedup_line | 137737 | 2014 | 54.99% | empty_after_line_dedup | 18.7 |
+| quality | 135723 | 17654 | 47.83% | gopher_word_count | 104.8 |
+| pii | 118069 | 0 | 47.83% |  | 44.7 |
 
 ## Quality rules
 
-Documents evaluated: 28948; violating at least one rule: 3693 (12.8%).
+Documents evaluated: 135723; violating at least one rule: 17654 (13.0%).
 
 | # | Rule | Drop if | Failed | Dropped | Sole | p10 / p50 / p90 | us/doc |
 |---:|---|---|---:|---:|---:|---|---:|
-| 1 | c4_lorem_ipsum | present | 63 (0.2%) | 63 | 49 | 0 / 0 / 0 | 21 |
-| 2 | c4_curly_bracket | present | 90 (0.3%) | 89 | 80 | 0 / 0 / 0 | 2 |
-| 3 | gopher_word_count | < 53 or > 100000 | 1614 (5.6%) | 1609 | 762 | 69 / 464 / 1596 | 1 |
-| 4 | gopher_mean_word_length | < 3 or > 10 | 344 (1.2%) | 296 | 101 | 3.28 / 3.45 / 3.68 | 66 |
-| 5 | gopher_symbol_ratio | > 0.1 | 14 (0.0%) | 11 | 11 | 0 / 0 / 0.00242 | 6 |
-| 6 | gopher_bullet_lines | > 0.9 | 161 (0.6%) | 135 | 115 | 0 / 0 / 0.143 | 5 |
-| 7 | gopher_ellipsis_lines | > 0.3 | 0 (0.0%) | 0 | 0 | 0 / 0 / 0 | 3 |
-| 8 | gopher_alpha_words | < 0.8 | 326 (1.1%) | 115 | 59 | 0.928 / 0.979 / 0.998 | 415 |
-| 9 | gopher_stopwords | < 4 | 1131 (3.9%) | 365 | 242 | 7 / 30 / 47 | 37 |
-| 10 | gopher_dup_lines | > 0.3 | 985 (3.4%) | 763 | 674 | 0 / 0 / 0.115 | 5 |
-| 11 | gopher_dup_paragraphs | > 0.3 | 0 (0.0%) | 0 | 0 | 0 / 0 / 0 | 5 |
-| 12 | gopher_top_2gram | > 0.2 | 256 (0.9%) | 23 | 16 | 0.0193 / 0.04 / 0.087 | 218 |
-| 13 | gopher_top_3gram | > 0.18 | 428 (1.5%) | 68 | 38 | 0.0139 / 0.0338 / 0.0864 | 215 |
-| 14 | gopher_top_4gram | > 0.16 | 983 (3.4%) | 142 | 142 | 0.0125 / 0.0336 / 0.0966 | 217 |
-| 15 | fineweb_line_punct | <= 0.12 | 0 (0.0%) | 0 | 0 | 1 / 1 / 1 | 4 |
-| 16 | fineweb_short_lines | >= 0.67 | 44 (0.2%) | 14 | 14 | 0 / 0 / 0.111 | 3 |
+| 1 | c4_lorem_ipsum | present | 124 (0.1%) | 124 | 95 | 0 / 0 / 0 | 75 |
+| 2 | c4_curly_bracket | present | 348 (0.3%) | 346 | 296 | 0 / 0 / 0 | 7 |
+| 3 | gopher_word_count | < 53 or > 100000 | 8638 (6.4%) | 8621 | 3559 | 68 / 476 / 1569 | 3 |
+| 4 | gopher_mean_word_length | < 3 or > 10 | 1957 (1.4%) | 1542 | 400 | 3.27 / 3.44 / 3.66 | 257 |
+| 5 | gopher_symbol_ratio | > 0.1 | 68 (0.1%) | 52 | 47 | 0 / 0 / 0.00241 | 21 |
+| 6 | gopher_bullet_lines | > 0.9 | 1110 (0.8%) | 869 | 764 | 0 / 0 / 0.143 | 19 |
+| 7 | gopher_ellipsis_lines | > 0.3 | 0 (0.0%) | 0 | 0 | 0 / 0 / 0 | 14 |
+| 8 | gopher_alpha_words | < 0.8 | 1746 (1.3%) | 400 | 198 | 0.931 / 0.981 / 0.999 | 1576 |
+| 9 | gopher_stopwords | < 4 | 6204 (4.6%) | 1505 | 994 | 7 / 30 / 47 | 128 |
+| 10 | gopher_dup_lines | > 0.3 | 4031 (3.0%) | 3039 | 2749 | 0 / 0 / 0.1 | 15 |
+| 11 | gopher_dup_paragraphs | > 0.3 | 0 (0.0%) | 0 | 0 | 0 / 0 / 0 | 17 |
+| 12 | gopher_top_2gram | > 0.2 | 1741 (1.3%) | 126 | 70 | 0.0197 / 0.0403 / 0.0887 | 874 |
+| 13 | gopher_top_3gram | > 0.18 | 2989 (2.2%) | 317 | 143 | 0.0141 / 0.034 / 0.0899 | 864 |
+| 14 | gopher_top_4gram | > 0.16 | 5729 (4.2%) | 679 | 678 | 0.0126 / 0.0336 / 0.101 | 867 |
+| 15 | fineweb_line_punct | <= 0.12 | 0 (0.0%) | 0 | 0 | 1 / 1 / 1 | 18 |
+| 16 | fineweb_short_lines | >= 0.67 | 214 (0.2%) | 34 | 34 | 0 / 0 / 0.0909 | 11 |

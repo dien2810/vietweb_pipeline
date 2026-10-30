@@ -2,7 +2,8 @@
 
 - Repair common encoding errors (ftfy) and convert to Unicode NFC.
 - Normalize tone-mark placement in the open rhymes oa, oe, uy (e.g. "hoà" <-> "hòa").
-- Detect text written in the legacy VNI / TCVN3 encodings that was decoded incorrectly.
+- Detect text written in the legacy VNI / TCVN3 encodings that was decoded incorrectly
+  (conversion to Unicode: text/legacy.py).
 """
 from __future__ import annotations
 
@@ -40,10 +41,13 @@ _NEW_TO_OLD, _OLD_TO_NEW = _build_tone_maps()
 
 
 def _tone_regex(mapping: dict[str, str]) -> re.Pattern:
-    alts = "|".join(sorted(map(re.escape, mapping), key=len, reverse=True))
+    # One character class per position instead of an alternation of every rhyme (about 5 times faster);
+    # pairs that are not in the mapping are returned unchanged by normalize_tone_marks.
+    firsts = "".join(sorted({k[0] for k in mapping}))
+    seconds = "".join(sorted({k[1] for k in mapping}))
     # Apply only when the rhyme ends the syllable (no final consonant) and does not follow 'q'
     # ("quý", "quỳ" are spelled the same in both styles)
-    return re.compile(rf"(?<![qQ])({alts})(?![{_VN_LETTERS}])")
+    return re.compile(rf"(?<![qQ])([{firsts}][{seconds}])(?![{_VN_LETTERS}])")
 
 
 _RE_NEW = _tone_regex(_NEW_TO_OLD)
@@ -53,9 +57,9 @@ _RE_OLD = _tone_regex(_OLD_TO_NEW)
 def normalize_tone_marks(text: str, style: str = "old") -> str:
     """style='old': new-style -> old-style placement; style='new': the reverse; 'none': unchanged."""
     if style == "old":
-        return _RE_NEW.sub(lambda m: _NEW_TO_OLD[m.group(1)], text)
+        return _RE_NEW.sub(lambda m: _NEW_TO_OLD.get(m.group(1), m.group(1)), text)
     if style == "new":
-        return _RE_OLD.sub(lambda m: _OLD_TO_NEW[m.group(1)], text)
+        return _RE_OLD.sub(lambda m: _OLD_TO_NEW.get(m.group(1), m.group(1)), text)
     return text
 
 
@@ -66,9 +70,35 @@ _SPACES = re.compile(r"[ \t\u00a0\u2000-\u200a\u3000]+")
 _BLANK_LINES = re.compile(r"\n{3,}")
 
 
+# ftfy only needs to see a line that contains a character it could change. A line is left as it is when it
+# holds only printable ASCII other than "&" (HTML entities) and Vietnamese letters, except the upper-case
+# letters U+00C0-U+00DF: those are also lead bytes of 2-byte UTF-8 mojibake ("Ã " for "à" when the A0 byte
+# became a space). On the 48,815 documents of the 200-file run the output equals ftfy on the whole text,
+# and stage 3 is about 3 times faster (most of its time was ftfy).
+_PLAIN_CHARS = ("".join(chr(c) for c in range(0x20, 0x7F) if chr(c) != "&")
+                + "".join(ch for ch in _VN_LETTERS[6:] if not "\u00c0" <= ch <= "\u00df"))
+_NOT_PLAIN = re.compile("[^" + re.escape(_PLAIN_CHARS) + "]")
+
+
+def fix_text_lines(text: str, form: str = "NFC") -> str:
+    """Same result as ftfy.fix_text(text, normalization=form), running ftfy only on lines it could change."""
+    if ftfy is None or not _NOT_PLAIN.search(text.replace("\n", "")):
+        return text
+    parts = text.split("\n")
+    out, seen_lt = [], False
+    for i, line in enumerate(parts):
+        seg = line + ("\n" if i < len(parts) - 1 else "")
+        # As in ftfy.fix_text: once a line contains "<", HTML entities are not unescaped in that line or later ones
+        seen_lt = seen_lt or "<" in line
+        if _NOT_PLAIN.search(line):
+            seg = ftfy.fix_text(seg, normalization=form, unescape_html=False if seen_lt else "auto")
+        out.append(seg)
+    return "".join(out)
+
+
 def normalize_text(text: str, fix_mojibake: bool = True, form: str = "NFC", tone_style: str = "old") -> str:
     if fix_mojibake and ftfy is not None:
-        text = ftfy.fix_text(text, normalization=form)
+        text = fix_text_lines(text, form)
     text = unicodedata.normalize(form, text)
     text = _CONTROL.sub("", text)
     text = "\n".join(_SPACES.sub(" ", line).strip() for line in text.split("\n"))
@@ -77,7 +107,8 @@ def normalize_text(text: str, fix_mojibake: bool = True, form: str = "NFC", tone
 
 
 # Characters that appear when TCVN3 (ABC) or VNI text is misread as Latin-1 / Windows-1252.
-# This is a simple detector; validate it in weeks 8-10 on clean text that is deliberately corrupted.
+# This score only flags pages; the decision to convert is made in text/legacy.py by decoding the text and
+# checking that it then reads as Vietnamese (the score also flags Turkish and Kurdish pages).
 # Only characters that are NOT part of the Vietnamese alphabet are used, and symbols common in normal
 # text (copyright sign, registered sign, guillemets, middle dot, pound sign) are excluded to limit false positives.
 _TCVN3_MARKERS = set("\u00b8\u00b5\u00b6\u00b9\u00a8\u00aa\u00ac\u00a6\u00a7\u00a1\u00a2\u00a4\u00a5"
@@ -94,7 +125,3 @@ def legacy_encoding_score(text: str) -> float:
     vni = len(_VNI_PATTERN.findall(text))
     return (tcvn + vni) / max(len(text), 1)
 
-
-def convert_legacy(text: str) -> str:
-    """TODO (weeks 8-10): convert TCVN3/VNI text to Unicode with a complete conversion table."""
-    raise NotImplementedError("TCVN3/VNI -> Unicode conversion table is not implemented yet")

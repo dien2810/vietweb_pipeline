@@ -1,0 +1,13 @@
+{
+  "corpus": "clean",
+  "seed": 0,
+  "preset": "cpu",
+  "tokens": 3000000,
+  "params_m": 7.29,
+  "device": "cpu",
+  "seconds": 1217.5,
+  "val_wiki": 5.9646,
+  "val_web": 5.18,
+  "val_raw": 6.6727,
+  "val_wiki_full": 6.1637
+}

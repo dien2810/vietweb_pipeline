@@ -24,6 +24,22 @@ collect:
     backoff_seconds: 5           # exponential backoff: 5, 10, 20, ... seconds
     pause_between_files: 1.0     # pause between files to avoid bursts of requests
 
+# Processes for the stages that treat each document on its own: normalize, boilerplate, langid (heuristic), pii.
+# 1 = a single process; 0 = one per CPU core. The output does not change (checked with scripts/compare_runs.py).
+# Measure with scripts/bench_parallel.py before choosing a value. On the i5-12450H (8 cores = 4P + 4E, 12 threads)
+# 8 processes are fastest for stage 3 (5.0x one process; 12 processes: 4.0x).
+parallel:
+  workers: 8
+  chunksize: 0                   # documents sent to a process at a time; 0 = automatic
+  min_items: 200                 # stages with fewer documents than this run in one process
+
+# Memory: with batch_files > 0, stages 3-5 (normalize, boilerplate, langid, url_filter) run on this many raw
+# files at a time, and only their cleaned output stays in memory for deduplication and the later stages.
+# Same output as 0 (checked on 40 files). Use about 50 for 1,000+ files; 0 = read everything at once.
+# Not used with run --limit. funnel.csv then sums the per-batch counts; shares are averaged per document.
+memory:
+  batch_files: 50
+
 # Order of the processing stages (after collection). Reorder for experiments (RQ4).
 stages:
   - normalize
@@ -40,14 +56,17 @@ normalize:
   fix_mojibake: true             # ftfy
   unicode_form: NFC
   tone_mark_style: old           # old: hòa, thủy | new: hoà, thuỷ | none: keep as is
-  legacy_encoding_action: flag   # flag: mark only | drop: remove the document (VNI/TCVN3 conversion planned for weeks 8-10)
+  legacy_encoding_action: convert # flag: mark only | convert: decode TCVN3/VNI text to Unicode | drop: remove
+                                 # convert (scripts/legacy_eval.py): 99.4% of 2,000 clean documents
+                                 # written in TCVN3 or VNI are detected and restored; 0 clean documents converted;
+                                 # 0 of the 48,815 raw documents of the 200-file run are legacy text
   legacy_encoding_threshold: 0.02
 
 boilerplate:
   # Stage 3b: remove menus, sidebars and footers from WET text, page by page (see stages/s03b_boilerplate.py)
   enabled: true
   method: c4_lines               # justext | c4_lines | none
-  # Chosen on 2026-10-26 from `python -m vietweb extract-eval` (outputs/eval/extraction_eval.md): 3 WARC files,
+  # Chosen with `python -m vietweb extract-eval` (outputs/eval/extraction_eval.md): 3 WARC files,
   # 737 pages, trafilatura text as reference, character-weighted line F1 over 26 settings:
   #   c4_lines 0.756 | best jusText 0.730 | previous jusText setting 0.728 | keep everything 0.511
   # c4_lines minus previous jusText: +0.028 F1 (95% page-bootstrap CI +0.005 to +0.051; optimistic with 3 files).
@@ -57,7 +76,7 @@ boilerplate:
   # fineweb_line_punct and fineweb_short_lines become almost inactive. To go back: method: justext.
   c4_min_words: 5                # c4_lines: minimum syllables per kept line (C4 uses 5 words)
   c4_drop_ellipsis: true         # c4_lines: also drop lines ending with "..." or "…" (truncated excerpts).
-                                 # Added 2026-10-27: in wet_50_c4, gopher_ellipsis_lines dropped 772 pages because
+                                 # Without it (run wet_50_c4), gopher_ellipsis_lines dropped 772 pages because
                                  # of such lines; on the 3 WARC files: F1 0.750 (vs 0.756), agreement of the pages
                                  # passing stage 7 with trafilatura 0.666 (vs 0.647)
   min_chars_after: 200           # both methods: drop the document if less text than this remains
@@ -97,7 +116,8 @@ dedup:
     enabled: true
     min_docs_per_domain: 3       # remove a line repeated in >= k documents of the same domain
     min_domains: 20              # also remove a line found on >= this many domains (CCNet-style; 0 = off).
-                                 # Grows with the sample size: check the removed lines when moving to 200+ files
+                                 # The number of distinct lines removed grows with the sample size (73 at 200 files,
+                                 # 279 at 1,000 files); cross_site_top in funnel.csv lists the most frequent ones
     min_line_chars: 10
 
 quality:

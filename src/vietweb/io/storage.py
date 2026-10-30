@@ -33,8 +33,8 @@ def write_sharded(df: pd.DataFrame, out_dir: Path, prefix: str, shard_size: int)
     return paths
 
 
-def read_raw(raw_dir: Path, crawls: list[str] | None = None) -> pd.DataFrame:
-    """Read all raw Parquet files (optionally only for the given crawls) into one DataFrame."""
+def raw_files(raw_dir: Path, crawls: list[str] | None = None) -> list[Path]:
+    """Raw Parquet files (optionally only for the given crawls), in a fixed order."""
     files = []
     crawl_dirs = sorted(p for p in raw_dir.iterdir() if p.is_dir()) if raw_dir.exists() else []
     for d in crawl_dirs:
@@ -43,7 +43,12 @@ def read_raw(raw_dir: Path, crawls: list[str] | None = None) -> pd.DataFrame:
         files += sorted(d.glob("*.parquet"))
     if not files:
         raise FileNotFoundError(f"No Parquet files found in {raw_dir}. Run the collect command first.")
-    return pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+    return files
+
+
+def read_raw(raw_dir: Path, crawls: list[str] | None = None) -> pd.DataFrame:
+    """Read all raw Parquet files (optionally only for the given crawls) into one DataFrame."""
+    return pd.concat([pd.read_parquet(f) for f in raw_files(raw_dir, crawls)], ignore_index=True)
 
 
 class Manifest:

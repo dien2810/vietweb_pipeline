@@ -1,0 +1,22 @@
+{
+  "finished_utc": "2026-10-29T16:07:44+00:00",
+  "n_input": 48815,
+  "n_kept": 25255,
+  "stages": [
+    "normalize",
+    "boilerplate",
+    "langid",
+    "url_filter",
+    "dedup_exact",
+    "dedup_near",
+    "dedup_line",
+    "quality",
+    "pii"
+  ],
+  "quality_unit": "syllable",
+  "near_dup_unit": "syllable",
+  "langid_backend": "heuristic",
+  "workers": 12,
+  "batch_files": 0,
+  "boilerplate_method": "c4_lines"
+}

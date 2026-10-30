@@ -21,7 +21,10 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Logs
-outputs/eval/calibration_dev*.csv
+# Files with page text and URLs: keep out of Git
+outputs/eval/calibration_dev.csv
+outputs/eval/calibration_dev_r2.csv
 outputs/eval/calibration_test.csv
 outputs/eval/*_examples.csv
+outputs/eval/labels_to_annotate.csv
+_to_delete/

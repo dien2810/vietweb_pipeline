@@ -1,7 +1,7 @@
 {
-  "finished_utc": "2026-10-28T18:46:55+00:00",
-  "n_input": 18576,
-  "n_kept": 10050,
+  "finished_utc": "2026-10-29T21:12:51+00:00",
+  "n_input": 246833,
+  "n_kept": 118069,
   "stages": [
     "normalize",
     "boilerplate",
@@ -16,5 +16,7 @@
   "quality_unit": "syllable",
   "near_dup_unit": "syllable",
   "langid_backend": "heuristic",
+  "workers": 8,
+  "batch_files": 50,
   "boilerplate_method": "c4_lines"
 }

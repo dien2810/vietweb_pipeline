@@ -6,9 +6,11 @@ The patterns are simple; measure the false-positive rate on a labeled sample
 from __future__ import annotations
 
 import re
+from functools import partial
 
 import pandas as pd
 
+from ..parallel import pmap_series
 from .base import StageResult
 
 PATTERNS = {
@@ -32,7 +34,7 @@ def mask(text: str, enabled: dict) -> tuple[str, dict]:
 
 def run(df: pd.DataFrame, cfg: dict) -> StageResult:
     enabled = cfg.get("pii", {})
-    out = df["text"].map(lambda t: mask(t, enabled))
+    out = pmap_series(partial(mask, enabled=enabled), df["text"], cfg)
     new_text = out.map(lambda x: x[0])
     counts = pd.DataFrame(list(out.map(lambda x: x[1])), index=df.index).fillna(0).astype(int)
     extra = {f"pii_{c}": counts[c] for c in counts.columns}

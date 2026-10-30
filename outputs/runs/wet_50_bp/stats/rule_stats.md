@@ -1,4 +1,4 @@
-Run finished 2026-10-03T07:09:56+00:00 (UTC): 12304 documents in, 5125 kept; langid=heuristic, quality unit=syllable, near-dup unit=syllable.
+Run: 12304 documents in, 5125 kept; langid=heuristic, quality unit=syllable, near-dup unit=syllable.
 
 ## Funnel
 

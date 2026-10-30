@@ -1,71 +1,50 @@
-# Hướng dẫn chạy pipeline `vietweb`
+# Hướng dẫn tái lập kết quả `vietweb`
 
-Mọi lệnh dưới đây chạy trong **PowerShell** trên Windows, tại thư mục repo:
+Lệnh dưới đây chạy trong PowerShell trên Windows, tại thư mục `vietweb` (thư mục chứa `pyproject.toml`). Trên Linux hoặc macOS, thay `\` trong đường dẫn bằng `/`.
 
-```powershell
-cd E:\Dien\Saudh\uit\mon_hoc\data_processing\Project\vietweb
-```
-
-## Chạy phần nào trước
-
-| Thứ tự | Việc | Mất bao lâu (ước tính) | Cần mạng |
-|---|---|---|---|
-| 1 | Cài môi trường Python (mục 1) | 10–15 phút | Có |
-| 2 | Chạy `pytest` để kiểm tra cài đặt (mục 2) | vài giây | Không |
-| 3 | Chạy thử toàn bộ pipeline trên dữ liệu giả lập (mục 3) | 1 phút | Không |
-| 4 | **Thu thập dữ liệu thật: 1 file WET, rồi 10 file** (mục 4) | 5–20 phút | Có |
-| 5 | Chạy pipeline trên 10 file, xem funnel và tài liệu bị loại (mục 5) | vài phút | Không |
-
-Bước 4–5 là mốc "tải thử 10 file" của tuần 1–2 trong đề cương. Sau đó làm theo lịch ở mục 6.
-
-Đã có 50 file: làm mục 5b (bỏ boilerplate và đối chiếu với WARC) trước khi tăng lên 200 file.
-
----
+Số liệu của từng lần chạy và từng thí nghiệm được tổng hợp trong [LUAT_LOC.md](LUAT_LOC.md). File kết quả gốc nằm trong `outputs/`: `outputs/runs/<lần chạy>/` cho các lần chạy pipeline, `outputs/eval/` cho các thí nghiệm.
 
 ## 1. Cài đặt
 
-**Yêu cầu:** Python 3.10–3.12 (khuyên 3.11), khoảng 5 GB ổ đĩa trống cho giai đoạn đầu.
+Yêu cầu: Python 3.10–3.12, khoảng 5 GB ổ đĩa trống cho 200 file WET và khoảng 15 GB cho 1.000 file.
 
 ```powershell
-py --version                                  # kiểm tra Python
-py -3.11 -m venv .venv                        # tạo môi trường ảo
-.\.venv\Scripts\Activate.ps1                  # kích hoạt (dòng lệnh sẽ có tiền tố (.venv))
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements.txt
-pip install -e .                              # cài gói vietweb ở chế độ phát triển
+pip install -e .
 $env:PYTHONUTF8 = "1"                         # in tiếng Việt đúng trên console
 ```
 
-- Nếu `Activate.ps1` báo lỗi *running scripts is disabled*, chạy một lần: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, rồi kích hoạt lại.
-- Mỗi lần mở PowerShell mới: `cd` vào thư mục repo, chạy `.\.venv\Scripts\Activate.ps1` và `$env:PYTHONUTF8 = "1"`.
-- Nên dùng Git ngay từ đầu: `git init`, `git add .`, `git commit -m "Khung code ban dau"`. Thư mục `data/` đã nằm trong `.gitignore`.
+- Nếu `Activate.ps1` báo lỗi *running scripts is disabled*, chạy một lần `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+- Gói cho các thí nghiệm mở rộng nằm trong `requirements-extra.txt`:
+  - `underthesea`: đếm theo từ;
+  - `fasttext-wheel`, `huggingface_hub`: GlotLID, mô hình chất lượng, đọc FineWeb-2;
+  - `pyspark`: bản chạy trên Spark (mục 5.7);
+  - `streamlit`: ứng dụng demo (mục 6).
+- Mô hình ngôn ngữ nhỏ (mục 5.9) cần thêm `torch` và `tokenizers`.
 
-## 2. Kiểm tra cài đặt
+Kiểm tra cài đặt (chạy offline, vài giây):
 
 ```powershell
 pytest -q
 ```
 
-Kết quả mong đợi: `23 passed`. Các test chạy hoàn toàn offline:
-- `test_text.py`: chuẩn hóa NFC, dấu thanh (hoà → hòa, giữ nguyên quý / hoàn), phát hiện TCVN3, tách âm tiết.
-- `test_stages.py`: nhận diện ngôn ngữ, khử trùng lặp chính xác / gần đúng / cấp dòng, luật chất lượng, che PII.
-- `test_collect_http.py`: giả lập máy chủ Common Crawl để kiểm tra lệnh `collect`, kể cả thử lại và không tải trùng.
-- `test_end_to_end.py`: chạy toàn bộ pipeline trên file WET giả lập.
-- `test_rule_stats.py`: kiểm tra script thống kê từng luật (`scripts/rule_stats.py`).
-- `test_boilerplate.py`: tầng 3b bỏ menu, footer, giữ đoạn nội dung; các bước phân loại của jusText; phương án `c4_lines`.
-- `test_reference.py`: giả lập máy chủ có file WARC để kiểm tra lệnh `reference` (trafilatura) và `extract-eval`. Cần `trafilatura` (đã có trong `requirements.txt`); thiếu thì test này bị bỏ qua.
+Kết quả mong đợi: 42 test đạt. `test_reference.py` bị bỏ qua nếu thiếu `trafilatura`.
 
-Nếu có test lỗi, dừng lại và xử lý trước khi tải dữ liệu thật.
+## 2. Chạy thử trên dữ liệu giả lập
 
-## 3. Chạy thử trên dữ liệu giả lập
+Không cần mạng. Dùng để kiểm tra cả pipeline chạy được trước khi tải dữ liệu thật.
 
 ```powershell
 python scripts\make_sample_wet.py data\sample\sample.warc.wet.gz
 python -m vietweb collect-local data\sample\sample.warc.wet.gz --crawl SAMPLE
 python -m vietweb run --crawl SAMPLE
+python -m vietweb status
 ```
 
-File giả lập có 12 bản ghi, mỗi bản ghi thử một tầng. Funnel mong đợi:
+File giả lập có 12 bản ghi, mỗi bản ghi thử một tầng. Bản ghi tiếng Anh bị lọc sơ bộ theo CLD2 và bản ghi menu dưới 200 ký tự bị bỏ khi thu thập, nên còn 10 đầu vào:
 
 ```
       stage  docs_in  removed  docs_out  pct_of_input            top_reason
@@ -74,433 +53,306 @@ File giả lập có 12 bản ghi, mỗi bản ghi thử một tầng. Funnel mo
 boilerplate       10        2         8          80.0 boilerplate_too_short   <- danh sách sản phẩm, văn bản TCVN3 lỗi mã
      langid        8        0         8          80.0
  url_filter        8        1         7          70.0         spam_keywords   <- trang cờ bạc
-dedup_exact        7        2         5          50.0       exact_duplicate   <- trang sao chép; bản dấu kiểu mới (sau khi bỏ dòng ghi chú cuối)
+dedup_exact        7        2         5          50.0       exact_duplicate   <- trang sao chép; bản dấu kiểu mới
  dedup_near        5        1         4          40.0        near_duplicate   <- bản sửa vài chữ
  dedup_line        4        0         4          40.0
     quality        4        0         4          40.0
         pii        4        0         4          40.0                         <- số điện thoại, email bị che
 ```
 
-(Chỉ có 10 đầu vào vì bản ghi tiếng Anh bị lọc sơ bộ theo CLD2 và bản ghi menu dưới 200 ký tự bị bỏ khi thu thập.)
-
-Xem thử kết quả:
+Xóa dữ liệu giả lập trước khi chạy dữ liệu thật, để lệnh `run` không trộn chúng vào:
 
 ```powershell
-python -m vietweb status
-python -m vietweb peek --reason near_duplicate -n 2
-python -m vietweb peek --kept -n 2
+Remove-Item -Recurse -Force data\raw\SAMPLE, data\processed, outputs\stats
 ```
 
-**Quan trọng:** xóa dữ liệu giả lập trước khi chạy dữ liệu thật, để lệnh `run` không trộn chúng vào:
+## 3. Thu thập dữ liệu
 
 ```powershell
-Remove-Item -Recurse -Force data\raw\SAMPLE, data\processed, outputs
+python -m vietweb paths                                       # danh sách file WET của CC-MAIN-2026-39 (khoảng 100.000 file)
+python -m vietweb collect --n-files 200                       # 200 file chọn ngẫu nhiên, seed 42
+python -m vietweb collect --crawl CC-MAIN-2024-10 --n-files 50   # cho phần đối chiếu FineWeb-2
 ```
 
-## 4. Thu thập dữ liệu thật (bước chạy đầu tiên với Common Crawl)
+- Bản crawl mặc định và các tham số thu thập nằm ở mục `collect` của `configs/pipeline.yaml`.
+- Mỗi file WET khoảng 60 MB (nén), được tải vào `data\tmp` và xóa sau khi đọc. Chỉ giữ bản ghi có trường `WARC-Identified-Content-Language` chứa `vie` và dài từ 200 ký tự. Dữ liệu thô nằm ở `data\raw\<bản crawl>\`.
+- File được chọn bằng `random.sample` với seed 42, nên `collect --n-files 1000` chọn đúng 200 file trên cộng thêm 800 file.
+- Bị ngắt giữa chừng thì chạy lại lệnh: file đã có trong `data\raw\<bản crawl>\_manifest.jsonl` không bị tải lại. Máy chủ Common Crawl đôi khi trả lỗi 503; code tự thử lại với thời gian chờ tăng dần.
 
-**4.1. Tải danh sách file WET** của bản crawl trong `configs/pipeline.yaml` (mặc định CC-MAIN-2026-39):
-
-```powershell
-python -m vietweb paths
-```
-
-Mong đợi: khoảng 100.000 file WET.
-
-**4.2. Tải 1 file trước** để đo tốc độ mạng và kiểm tra mọi thứ chạy đúng:
+## 4. Chạy pipeline và sao lưu kết quả
 
 ```powershell
-python -m vietweb collect --n-files 1
-python -m vietweb status
-```
-
-- Mỗi file WET khoảng 60 MB (nén). File được tải vào `data\tmp`, đọc xong thì xóa.
-- Chỉ giữ bản ghi có trường `WARC-Identified-Content-Language` chứa `vie`. Theo thống kê của Common Crawl, tiếng Việt chiếm khoảng 1% số trang, nên một file thường cho khoảng 200 bản ghi (ước tính, mỗi file sẽ khác nhau).
-- `status` in tỉ lệ bản ghi tiếng Việt trên tổng số. Hãy ghi lại con số này cho báo cáo (Bảng 2).
-
-**4.3. Tăng lên 10 file:**
-
-```powershell
-python -m vietweb collect --n-files 10
-```
-
-- Các file được chọn ngẫu nhiên với seed 42, nên file đã tải ở bước 4.2 nằm trong 10 file này và được bỏ qua.
-- Bị ngắt giữa chừng thì cứ chạy lại lệnh: file nào đã xong (có trong `data\raw\<crawl>\_manifest.jsonl`) sẽ không tải lại.
-- Máy chủ Common Crawl đôi khi trả lỗi 503 khi quá tải. Code tự thử lại với thời gian chờ tăng dần (5, 10, 20… giây). Nếu lỗi liên tục, tăng `collect.http.pause_between_files` trong cấu hình và thử lại sau.
-
-## 5. Chạy pipeline và đọc kết quả
-
-```powershell
-python -m vietweb run --crawl CC-MAIN-2026-39
-```
-
-Đầu ra:
-
-| File | Nội dung |
-|---|---|
-| `outputs\stats\funnel.csv` | Số tài liệu vào/ra, thời gian và lý do loại chính của từng tầng (Bảng 5, Hình 3) |
-| `outputs\stats\filter_costs.csv` | Tỉ lệ qua và thời gian của từng luật chất lượng (RQ4) |
-| `outputs\stats\quality_stats.parquet` | Giá trị mọi chỉ số chất lượng của từng tài liệu (để hiệu chỉnh ngưỡng, RQ1) |
-| `outputs\stats\run_info.json` | Cấu hình chính của lần chạy |
-| `data\processed\kept\` | Tài liệu giữ lại |
-| `data\processed\dropped\` | Tài liệu bị loại, kèm `drop_stage` và `drop_reason` |
-
-Việc cần làm ngay sau lần chạy đầu tiên:
-
-1. **Xem tầng nào loại nhiều nhất:** `python -m vietweb status`.
-2. **Đọc tài liệu bị loại theo từng lý do**, ví dụ:
-   ```powershell
-   python -m vietweb peek --reason gopher_mean_word_length -n 5
-   python -m vietweb peek --reason langid_low_score -n 5
-   ```
-   Ngưỡng hiện tại là ngưỡng gốc cho tiếng Anh. Rất có thể có luật loại nhầm nhiều văn bản tiếng Việt tốt; ghi lại quan sát này, vì đó là dữ liệu cho RQ1.
-3. **Vẽ hình:** `python scripts\plot_report_figures.py --out ..\report\figures`, rồi mở `fig_rule_hist.pdf` để xem phân phối từng chỉ số.
-4. **Ghi số liệu từng luật:** `python scripts\rule_stats.py --out outputs\stats\rule_stats.md`, rồi cập nhật [LUAT_LOC.md](LUAT_LOC.md): danh mục mọi luật, ngưỡng, số liệu, nhật ký thay đổi ngưỡng và lịch sử lần chạy.
-5. **Dashboard** (tùy chọn): `pip install streamlit`, rồi `streamlit run dashboard\app.py`.
-
-Mỗi lần `run` ghi đè `outputs\` và `data\processed\`. Muốn giữ kết quả cũ để so sánh thì chép `outputs\stats` sang thư mục khác trước khi chạy lại (lệnh sao lưu có trong mục *Cách dùng* của [LUAT_LOC.md](LUAT_LOC.md)).
-
-## 5b. Bỏ boilerplate (tầng 3b) và đối chiếu với WARC
-
-File WET chứa toàn bộ chữ trên trang, kể cả menu, sidebar và footer. Vì vậy ở lần chạy 50 file, tầng 7 loại 74,9% số tài liệu, chủ yếu do ba luật FineWeb theo dòng (xem `LUAT_LOC.md`, mục 7.3).
-
-Lệnh `run` giờ có thêm **tầng 3b (`boilerplate`)** ngay sau tầng chuẩn hóa:
-- Từ 26/10/2026 tầng này dùng `method: c4_lines`: chỉ giữ dòng kết thúc bằng dấu câu và có ít nhất 5 âm tiết, bỏ dòng chứa "javascript". Phương pháp này được chọn vì có F1 cao nhất khi đối chiếu với trafilatura (`LUAT_LOC.md`, mục 3b).
-- Trang còn dưới 200 ký tự sau khi bỏ boilerplate bị loại, với lý do `boilerplate_too_short`.
-- Tham số nằm ở mục `boilerplate` trong `configs/pipeline.yaml`.
-  - `method: none` tắt tầng này (chạy giống trước đây).
-  - `method: justext` dùng thuật toán jusText: phân loại từng dòng theo độ dài, tỉ lệ từ dừng và các dòng xung quanh (phương pháp dùng trước 26/10/2026).
-- Chi tiết các luật: `LUAT_LOC.md`, mục 3b.
-
-### Bước 1. Chạy lại 50 file với tầng 3b
-
-Mất khoảng 10 phút.
-
-```powershell
-pip install -r requirements.txt          # có thêm trafilatura cho bước 2
 python -m vietweb run --crawl CC-MAIN-2026-39
 python scripts\rule_stats.py --out outputs\stats\rule_stats.md
-$name = "wet_50_bp"                      # mỗi lần chạy một tên mới (ví dụ wet_50_c4); không dùng lại tên đã có
+```
+
+| Đầu ra | Nội dung |
+|---|---|
+| `outputs\stats\funnel.csv` | Số tài liệu vào/ra, thời gian và lý do loại chính của từng tầng |
+| `outputs\stats\filter_costs.csv` | Tỉ lệ qua và thời gian của từng luật chất lượng |
+| `outputs\stats\quality_stats.parquet` | Giá trị mọi chỉ số chất lượng của từng tài liệu (khi `quality.save_stats: true`) |
+| `outputs\stats\run_info.json` | Cấu hình chính của lần chạy |
+| `outputs\stats\rule_stats.md` | Funnel và thống kê từng luật dạng bảng |
+| `data\processed\kept\`, `data\processed\dropped\` | Tài liệu giữ lại; tài liệu bị loại kèm `drop_stage`, `drop_reason` |
+
+Lệnh `run` ghi đè `outputs\stats` và `data\processed`. Sao lưu sau mỗi lần chạy, mỗi lần một tên mới (nếu thư mục đích đã có, `Copy-Item` chép lồng vào bên trong thay vì ghi đè):
+
+```powershell
+$name = "wet_200_final"
 Copy-Item -Recurse outputs\stats "outputs\runs\$name"
 Copy-Item -Recurse data\processed "outputs\runs\$name\processed"
 ```
 
-Hai lệnh `Copy-Item` chỉ sao lưu kết quả của lần `run` vừa xong. Chạy chúng sau mỗi lần `run`; chỉ sửa `pipeline.yaml` thì không cần. Nếu thư mục đích đã có, PowerShell chép `stats` vào bên trong thư mục đó thay vì ghi đè, nên kết quả hai lần chạy sẽ lẫn vào nhau.
+Các lần chạy dùng trong báo cáo:
 
-Kết quả chạy thử trên đúng 50 file này. Trên máy bạn, số tài liệu sẽ giống, chỉ thời gian chạy khác.
+| Lần chạy | Dữ liệu | Cấu hình |
+|---|---|---|
+| `wet_200_final` | 200 file CC-MAIN-2026-39 | `configs/` hiện tại. Số tiến trình không làm đổi kết quả |
+| `wet_1000` | 1.000 file CC-MAIN-2026-39 (`collect --n-files 1000`) | `configs/` hiện tại: `parallel.workers: 8`, `memory.batch_files: 50` |
+| `wet_2024_10_50` | 50 file CC-MAIN-2024-10 | `configs/` hiện tại; chạy với `run --crawl CC-MAIN-2024-10` |
 
-| | `wet_50` (chưa có 3b) | `wet_50_bp` (có 3b) |
-|---|---:|---:|
-| Tài liệu giữ lại | 2.300 (18,7%) | 5.125 (41,7%) |
-| Tổng số ký tự giữ lại | 22,4 triệu (còn lẫn menu) | 25,4 triệu |
-| Bị tầng 3b loại | — | 4.507, trong đó 1.358 trang có ngôn ngữ chính không phải tiếng Việt |
-| Bị tầng nhận diện ngôn ngữ loại | 1.883 | 7 |
-| Tầng 7 loại (% số tài liệu vào tầng) | 74,9% | 26,0% |
-| Trượt `fineweb_short_lines` / `line_punct` / `dup_line_chars` | 58,6% / 48,6% / 46,8% | 11,7% / 10,0% / 8,5% |
+- Kiểm tra một lần chạy lại cho đúng kết quả cũ: `python scripts\compare_runs.py outputs\runs\wet_200_final\processed data\processed` phải in `IDENTICAL`.
+- Các lần chạy trung gian (`baseline_wet_10`, `wet_50`, `wet_50_bp`, `wet_50_c4`, `wet_200`, `wet_200_cal`) dùng cấu hình trước khi hiệu chỉnh. Khác biệt cấu hình của từng lần ghi ở `LUAT_LOC.md`, mục 10 và 11; muốn chạy lại thì đặt lại các khóa đó trong `configs/pipeline.yaml` và `configs/vie_thresholds.yaml`.
 
-Lưu ý khi đọc kết quả:
-- **Tầng 3b gánh luôn phần lớn việc lọc ngôn ngữ.** Cách phân loại dựa trên từ dừng tiếng Việt, nên trang tiếng Anh hay tiếng Trung mất gần hết các dòng ở tầng này. Khi viết funnel trong báo cáo, dùng số `too_short_cld2_not_vie` trong cột `details` của `funnel.csv` để tách hai loại trang.
-- **Có tài liệu tốt bị mất.** 245 tài liệu được giữ ở `wet_50` nay bị loại, trong đó 127 tài liệu do tầng 3b. Xem các trang bị loại bằng:
-  ```powershell
-  python -m vietweb peek --reason boilerplate_too_short -n 5
-  ```
+Xem nhanh kết quả của lần chạy gần nhất:
 
-### Bước 2. Tạo bản tham chiếu từ WARC
+```powershell
+python -m vietweb status                                  # funnel
+python -m vietweb peek --reason gopher_word_count -n 5    # tài liệu bị loại theo một lý do
+python -m vietweb peek --kept -n 2                        # tài liệu giữ lại
+```
 
-Bước này cần mạng.
+## 5. Tái lập từng kết quả
+
+| Kết quả | Mục | File kết quả |
+|---|---|---|
+| Phễu xử lý 200 và 1.000 file | 4 | `outputs/runs/wet_200_final/`, `outputs/runs/wet_1000/` |
+| Chọn phương pháp bỏ boilerplate | 5.1 | `outputs/eval/extraction_eval.md`, `extraction_grid.csv`, `extraction_quality.csv` |
+| Hiệu chỉnh ngưỡng tầng 7 | 5.2 | `outputs/eval/calibration_*.csv` |
+| Đếm theo âm tiết hay theo từ | 5.3 | `outputs/eval/word_unit_eval.md`, `word_unit_scores.csv` |
+| Đơn vị shingle cho MinHash-LSH | 5.4 | `outputs/eval/dedup_units.csv` |
+| Mức trùng lặp theo số file | 5.4 | `outputs/eval/dedup_stats_wet_200_final.md`, `dedup_stats_wet_1000.md` |
+| Đối chiếu FineWeb-2, thông tin cá nhân còn lại | 5.5 | `outputs/eval/fineweb2_CC-MAIN-2024-10.md`, `fineweb2_pii_vie_Latn.md` |
+| Thứ tự luật theo chi phí | 5.6 | in ra màn hình (số liệu ở `LUAT_LOC.md`, mục 7.5) |
+| Chạy song song, bản Spark | 5.7 | `outputs/eval/parallel_bench.csv`, `data/spark_out/spark_runs.csv` |
+| GlotLID, bảng mã TCVN3/VNI | 5.8 | `outputs/eval/langid_compare.md`, `legacy_eval.md`, `legacy_scan.md` |
+| Mô hình chất lượng, rò rỉ VMLU, mô hình ngôn ngữ nhỏ | 5.9 | `outputs/eval/quality_model.md`, `benchmark_overlap_vmlu.md`, `lm_ablation.md` |
+| Hình trong báo cáo | 5.10 | `../report/figures/` |
+
+### 5.1. Chọn phương pháp bỏ boilerplate (tầng 3b)
+
+Văn bản tham chiếu là văn bản chính trích từ file WARC bằng trafilatura, với cấu hình của FineWeb (datatrove): `favor_precision=True`, `include_comments=False`, `deduplicate=True`. Cần mạng.
 
 ```powershell
 python -m vietweb reference --n-files 3
-```
-
-- **Lệnh làm gì:**
-  - Lấy 3 file đầu (theo tên) trong 50 file đã thu thập và tải file WARC tương ứng. Mỗi file WARC khoảng 1 GB; ước tính mất 2–3 phút mỗi file theo tốc độ lần tải WET vừa rồi.
-  - Tìm HTML của các bản ghi tiếng Việt, rồi trích văn bản chính bằng trafilatura. Cấu hình trích giống FineWeb (datatrove): `favor_precision=True`, `include_comments=False`, `deduplicate=True`.
-- **Kết quả:** nằm trong `data\reference\CC-MAIN-2026-39\`. File WARC bị xóa sau khi xử lý; thêm `--keep-warc` nếu muốn giữ.
-- **Cách ghép bản ghi:** dữ liệu đã thu thập được ghép với WARC theo URL. Từ bản này, `collect` lưu thêm cột `warc_refers_to` để ghép theo ID bản ghi.
-- **Muốn thêm dữ liệu:** dùng `--n-files 5`. File đã xong không bị tải lại.
-
-### Bước 3. So sánh tầng 3b với trafilatura
-
-```powershell
 python -m vietweb extract-eval
 ```
 
-Kết quả nằm trong `outputs\eval\`. Đọc `extraction_eval.md` trước; số liệu đầy đủ ở `extraction_grid.csv` và `extraction_quality.csv`.
+- `reference` lấy 3 file đầu (theo tên) trong số file đã thu thập, tải file WARC tương ứng (khoảng 1 GB mỗi file), trích văn bản các bản ghi tiếng Việt rồi xóa file WARC (`--keep-warc` để giữ). Kết quả ở `data\reference\<bản crawl>\`. Bản ghi được ghép theo `warc_refers_to`, hoặc theo URL nếu thiếu cột này.
+- `extract-eval` chấm 26 cấu hình: 24 tổ hợp tham số jusText, luật dòng C4 (`c4_lines`) và giữ nguyên (`none`).
+  - Một dòng WET là nội dung nếu nó (khi dài từ 30 ký tự) là chuỗi con của văn bản tham chiếu, hoặc (khi ngắn hơn) trùng một dòng của văn bản tham chiếu.
+  - Precision và recall tính theo số ký tự.
+  - Bảng thứ hai cho tỉ lệ trượt từng luật tầng 7 trên WET thô, WET sau tầng 3b và văn bản trafilatura.
+- Phương pháp và tham số của tầng 3b nằm ở mục `boilerplate` trong `configs/pipeline.yaml` (`method: c4_lines`, `c4_min_words: 5`, `c4_drop_ellipsis: true`, `min_chars_after: 200`). `method: justext` và `method: none` cho hai phương án còn lại.
 
-1. **Bảng độ khớp theo dòng.**
-   - Một dòng WET được coi là nội dung nếu nó cũng có trong văn bản trafilatura. Precision và recall được tính theo số ký tự.
-   - Bảng có 26 cấu hình: 24 tổ hợp tham số jusText, cộng `c4_lines`, cộng `none` (giữ hết). Dòng `none` cho biết tỉ lệ nội dung thật trong WET.
-2. **Bảng luật chất lượng.** Cho biết tỉ lệ trượt từng luật trên ba phiên bản của cùng các trang: WET thô, WET sau tầng 3b, và văn bản trafilatura. WET sau 3b càng gần trafilatura thì ngưỡng hiệu chỉnh trên dữ liệu đã qua 3b càng đáng tin.
+### 5.2. Hiệu chỉnh ngưỡng tầng 7
 
-**Chọn tham số:**
-- Lấy cấu hình có F1 cao nhất, hoặc ưu tiên precision nếu cần dữ liệu sạch hơn.
-- Sửa 4 tham số `length_high`, `stopwords_high`, `stopwords_low`, `method` trong `configs/pipeline.yaml`.
-- Ghi thay đổi vào `LUAT_LOC.md` (mục 10), rồi chạy lại bước 1.
-
-**Giới hạn:** trafilatura là bản tham chiếu, không phải nhãn đúng tuyệt đối. Với `favor_precision`, trafilatura có thể bỏ sót một phần nội dung. Cần ghi rõ điều này trong báo cáo.
-
-Xong mục này mới hiệu chỉnh ngưỡng tầng 7 và tăng lên 200 file (tuần 6–7).
-
-## 5c. Hiệu chỉnh ngưỡng tầng 7 (RQ1)
-
-Làm trên lần chạy 200 file (`wet_200`). Script `scripts\calibration_sample.py` lấy các trang nằm sát ngưỡng của 5 luật có ảnh hưởng nhất. Ở `wet_200`, ba luật đầu là luật duy nhất làm trượt lần lượt 757 / 1.009 / 98 trang:
-
-- `gopher_word_count` (< 50 âm tiết)
-- `fineweb_dup_line_chars` (≥ 0,1)
-- `gopher_mean_word_length` (< 3)
-- `gopher_top_4gram` (> 0,16)
-- `gopher_stopwords` (< 2)
-
-Các luật còn lại gần như không loại trang nào sau tầng 3b, nên không cần hiệu chỉnh.
-
-Với mỗi luật, script lấy 20 trang chỉ bị luật đó loại (trong 150 trang gần ngưỡng nhất) và 20 trang được giữ gần ngưỡng nhất. 150 file đầu (theo thứ tự thu thập) dùng để chọn ngưỡng; 50 file sau để kiểm tra.
-
-### Bước 1. Tạo file gán nhãn
+Lấy mẫu trên lần chạy `wet_200`, tức 200 file với ngưỡng gốc của `gopher_word_count` (50), `gopher_stopwords` (2) và `fineweb_dup_line_chars` (0,1). Script đọc lần chạy gần nhất (`outputs\stats\quality_stats.parquet`, `data\processed`), nên chạy ngay sau `run` với các ngưỡng đó.
 
 ```powershell
-python scripts\calibration_sample.py
-```
-
-Kết quả: `outputs\eval\calibration_dev.csv` (200 trang) và `calibration_dev_key.csv`. File key ghi luật, phía ngưỡng và giá trị của từng trang. **Không mở file key khi đang gán nhãn**, để nhãn không bị ảnh hưởng.
-
-### Bước 2. Gán nhãn
-
-Mở `calibration_dev.csv` bằng Excel và điền cột `label` cho từng dòng:
-- `1`: kém chất lượng, nên loại. Ví dụ: danh sách sản phẩm và giá, menu, bảng số, chuỗi giao diện website, spam, văn bản vô nghĩa hoặc dịch máy.
-- `0`: chấp nhận được.
-- **Trang lẫn** (vừa có đoạn văn có ích, vừa có nhiều bảng giá, danh sách, menu): ước lượng theo độ dài.
-  - Phần văn bản có ích chiếm khoảng một nửa trở lên: `0`. Ít hơn: `1`.
-  - Ghi `lẫn` vào cột `note`.
-  - Nhãn là quyết định giữ hay bỏ **cả trang**, vì tầng 7 không xóa được từng dòng.
-- Trang không có nhiều rác mà vẫn phân vân: tự hỏi *nếu bỏ trang này, tập dữ liệu có mất một đoạn văn tiếng Việt có ích không?* Có thì điền 0, không thì điền 1.
-- Văn bản trong file chỉ hiện tối đa 2.000 ký tự đầu. Chấm theo phần hiện ra; nếu phần đó không đủ để quyết thì bỏ trống.
-- **Trang quảng cáo sản phẩm:** chấm theo chất lượng văn bản, không theo chủ đề.
-  - Viết thành đoạn văn, có thông tin (tính năng, cách dùng, đánh giá): `0`.
-  - Chủ yếu là tên sản phẩm, giá, "Mua ngay", thông số rời rạc, nhồi từ khóa: `1`.
-  - Cờ bạc, hoặc quảng cáo kiểu "khỏi bệnh 100%": `1`.
-  - Mọi trang quảng cáo đều ghi `qc` vào cột `note`, để sau này đếm riêng.
-- Cột `note` để ghi chú tùy ý. Bỏ trống `label` nếu không quyết được; dòng trống không được tính.
-
-Khi lưu, chọn **CSV UTF-8 (Comma delimited)**. Lưu kiểu CSV thường sẽ làm hỏng chữ tiếng Việt.
-
-Mất khoảng 1,5–2 giờ (khoảng 30 giây mỗi trang). Nếu có người thứ hai, nên để người đó gán nhãn trên một bản sao riêng để tính κ.
-
-### Bước 3. Tính điểm và chọn ngưỡng
-
-```powershell
+python scripts\calibration_sample.py                                   # tập dev (150 file đầu)
 python scripts\calibration_sample.py --score outputs\eval\calibration_dev.csv
-```
-
-Với mỗi luật, lệnh in ra:
-- `share poor` phía bị loại: precision của việc loại gần ngưỡng.
-- `share poor` phía được giữ: tỉ lệ rác còn sót gần ngưỡng.
-- Một bảng các ngưỡng thử, mỗi ngưỡng có: số trang có nhãn bị loại, precision, số trang tốt bị loại, số trang kém được giữ, và số trang cả lần chạy sẽ bị loại.
-
-Chọn ngưỡng:
-- Nếu precision phía bị loại dưới mục tiêu (ví dụ 0,9), nới ngưỡng ra.
-- Nếu phía được giữ còn nhiều trang kém, siết ngưỡng lại.
-- Precision chỉ đo trên dải sát ngưỡng và hai phía được lấy mẫu bằng nhau, nên chỉ dùng làm định hướng. Không coi đó là precision trên toàn bộ dữ liệu.
-
-**Vòng gán nhãn thêm:** dùng khi một luật cần nhãn ở dải rộng hơn. Ví dụ vòng 2 ngày 28/10/2026 (60 trang). Các trang đã gán nhãn ở vòng trước được tự động bỏ qua.
-
-```powershell
 python scripts\calibration_sample.py --tag r2 --band 600 --n 30 --bounds fineweb_dup_line_chars:max:fail,gopher_word_count:min:pass
 python scripts\calibration_sample.py --score outputs\eval\calibration_dev.csv outputs\eval\calibration_dev_r2.csv
+python scripts\calibration_sample.py --split test                      # tập test (50 file sau), sau khi đổi ngưỡng
+python scripts\calibration_sample.py --score outputs\eval\calibration_test.csv
 ```
 
-Bảng điểm luôn tính theo ngưỡng đang có trong `vie_thresholds.yaml`. Sửa ngưỡng xong không cần chạy lại pipeline mới xem được điểm, vì giá trị chỉ số của mọi trang đã lưu trong `quality_stats.parquet`.
+- Với mỗi luật, script lấy 20 trang trong 150 trang gần ngưỡng nhất ở hai nhóm: trang chỉ bị luật đó loại, và trang qua mọi luật. Tập dev và tập test chia theo thứ tự file trong `_manifest.jsonl`. Trang đã có trong vòng trước được bỏ qua.
+- File gán nhãn (`calibration_dev.csv`, `calibration_dev_r2.csv`, `calibration_test.csv`) chứa URL, văn bản và cột `label`; file `*_key.csv` ghi luật, phía ngưỡng và giá trị chỉ số của từng trang. Nhãn được gán khi chưa mở file key.
+- Hướng dẫn gán nhãn (cột `label`; dòng để trống không được tính):
+  - `1`: kém chất lượng, nên loại: danh sách sản phẩm và giá, menu, bảng số, chuỗi giao diện website, spam, văn bản vô nghĩa hoặc dịch máy.
+  - `0`: chấp nhận được.
+  - Trang lẫn (vừa có đoạn văn có ích, vừa có nhiều bảng giá, danh sách, menu): `0` nếu phần văn bản có ích chiếm khoảng một nửa trở lên, ngược lại `1`. Nhãn là quyết định giữ hay bỏ cả trang.
+  - Trang quảng cáo sản phẩm chấm theo chất lượng văn bản: viết thành đoạn văn có thông tin thì `0`; chủ yếu là tên sản phẩm, giá, "Mua ngay", thông số rời rạc, nhồi từ khóa thì `1`; cờ bạc hoặc quảng cáo kiểu "khỏi bệnh 100%" thì `1`.
+  - Chỉ chấm theo 2.000 ký tự đầu hiện trong file.
+- Lưu file bằng **CSV UTF-8**; lưu kiểu CSV thường làm hỏng chữ tiếng Việt.
+- Bảng điểm tính theo ngưỡng đang có trong `configs/vie_thresholds.yaml`. Đổi ngưỡng rồi chấm lại không cần chạy lại pipeline, vì giá trị chỉ số đã lưu trong `quality_stats.parquet`.
+- Quy tắc dời ngưỡng: chỉ dời khi tỉ lệ trang kém trong nhóm trang đổi trạng thái đạt khoảng 0,8. Kết quả: `LUAT_LOC.md`, mục 7.4.
 
-### Bước 4. Áp dụng và kiểm tra
-
-1. Sửa `configs\vie_thresholds.yaml` và ghi lý do vào `LUAT_LOC.md` (mục 10).
-2. Chạy lại `run`, rồi sao lưu với `$name = "wet_200_cal"` (mục 5b, bước 1).
-3. Kiểm tra một lần trên 50 file còn lại:
-   ```powershell
-   python scripts\calibration_sample.py --split test
-   python scripts\calibration_sample.py --score outputs\eval\calibration_test.csv
-   ```
-   Số liệu trên tập test này là số đưa vào báo cáo.
-4. RQ4: đo thời gian tầng 7 với thứ tự luật hiện tại và thứ tự theo chi phí. Không cần chạy lại cả pipeline:
-   ```powershell
-   python scripts\time_quality_order.py --repeats 5
-   ```
-   - Script dùng ngưỡng hiện có trong `vie_thresholds.yaml` và các trang đã vào tầng 7 ở lần chạy gần nhất.
-   - Hai thứ tự được chạy xen kẽ, báo cáo trung vị.
-   - Script kiểm tra luôn rằng tập trang được giữ không đổi giữa hai thứ tự.
-   - Nên chạy khi máy rảnh: các lần đo dao động nhiều nếu máy đang làm việc khác.
-
-## 5d. Đối chiếu với FineWeb-2 (RQ3)
-
-FineWeb-2 chỉ gồm các bản crawl đến tháng 4/2024, không có CC-MAIN-2026-39. Vì vậy cần chạy pipeline trên một bản crawl cũ rồi ghép với FineWeb-2 theo URL.
-
-Kích thước dữ liệu tiếng Việt của FineWeb-2:
-- `vie_Latn` (trang được giữ): khoảng 130 GB, 30 file.
-- `vie_Latn_removed` (trang bị bộ lọc của FineWeb-2 loại): khoảng 178 GB, 45 file.
-- Các file không chia theo bản crawl. Lệnh `fw2-urls` không tải cả file mà chỉ đọc qua mạng ba cột `url`, `dump`, `file_path`, rồi giữ các dòng của đúng một bản crawl.
-
-### Bước 1. Thu thập và chạy pipeline trên bản crawl cũ
+### 5.3. Đếm theo âm tiết hay theo từ
 
 ```powershell
-python -m vietweb collect --crawl CC-MAIN-2024-10 --n-files 50
-python -m vietweb run --crawl CC-MAIN-2024-10
-$name = "wet_2024_10_50"
-Copy-Item -Recurse outputs\stats "outputs\runs\$name"
-Copy-Item -Recurse data\processed "outputs\runs\$name\processed"
+pip install underthesea
+python scripts\word_unit_eval.py --workers 0
 ```
 
-Lệnh `run` ghi đè `data\processed`; kết quả 200 file đã được sao lưu ở `outputs\runs\wet_200_final`.
+Chạy trên mọi tài liệu vào tầng 7 của `outputs\runs\wet_200_final\processed` và trên 409 trang có nhãn. `--workers 0` dùng mọi lõi; tách từ bằng underthesea chậm hơn tách âm tiết khoảng 130 lần. Thêm `--n 3000` để chạy trên mẫu ngẫu nhiên.
 
-### Bước 2. Đọc URL từ FineWeb-2
-
-Cần mạng và thư viện `huggingface_hub`:
+### 5.4. Trùng lặp và đơn vị shingle
 
 ```powershell
-pip install huggingface_hub
-python -m vietweb fw2-urls --dump CC-MAIN-2024-10 --probe
+python scripts\dedup_stats.py --run outputs\runs\wet_200_final --crawl CC-MAIN-2026-39
+python scripts\dedup_stats.py --run outputs\runs\wet_1000 --crawl CC-MAIN-2026-39
+python -m vietweb dedup-eval --n 3000 --units syllable:3,syllable:5,char:15 --processed-dir outputs\runs\wet_200_final\processed
 ```
 
-Lệnh `--probe` chỉ đọc phần cuối (footer) của một file mỗi tập con. Nó in ra:
-- Các cột của file. Xem tập `vie_Latn_removed` có cột ghi lý do bị loại không.
-- Số nhóm dòng (row group) phải đọc.
-- **Dung lượng ước tính phải tải qua mạng** (`estimated_transfer_gb`).
+- `dedup_stats.py`: funnel ba bước khử trùng lặp, tỉ lệ trùng trong cùng tên miền, và tỉ lệ trùng trên các tập con lồng nhau chọn ngẫu nhiên (5 lần). Trùng chính xác trên tập con được đếm lại chính xác từ `text_sha1`; trùng gần đúng trên tập con bị đếm thiếu vì tài liệu đại diện của cụm có thể nằm ngoài tập con.
+- `dedup-eval`: với mỗi đơn vị shingle, so MinHash-LSH với Jaccard chính xác (≥ 0,75) trên mọi cặp của 3.000 tài liệu đã làm sạch, bỏ các tài liệu rỗng. Số cặp tăng theo bình phương số tài liệu: khoảng 30 phút, phần lớn cho `char:15`.
 
-Nếu dung lượng chấp nhận được thì chạy thật:
+### 5.5. Đối chiếu với FineWeb-2
 
-```powershell
-python -m vietweb fw2-urls --dump CC-MAIN-2024-10
-```
-
-- Kết quả nằm trong `data\fineweb2\CC-MAIN-2024-10\`.
-- File nào xong được ghi vào `_manifest.jsonl`. Nếu lệnh bị ngắt, chạy lại sẽ tiếp tục từ file chưa xong.
-- Muốn thử trước trên một file mỗi tập con: thêm `--max-files 1`.
-- Nếu bị lỗi 429 (quá nhiều yêu cầu): đăng nhập bằng `huggingface-cli login` rồi chạy lại.
-
-### Bước 3. So sánh và kiểm tra thông tin cá nhân
+FineWeb-2 không có CC-MAIN-2026-39, nên phần này dùng 50 file CC-MAIN-2024-10 (lần chạy `wet_2024_10_50`, mục 4). Cần mạng và `huggingface_hub`.
 
 ```powershell
+python -m vietweb fw2-urls --dump CC-MAIN-2024-10 --probe      # ước lượng dung lượng phải đọc
+python -m vietweb fw2-urls --dump CC-MAIN-2024-10              # khoảng 0,52 GB, khoảng 3 giờ
 python -m vietweb fw2-compare --dump CC-MAIN-2024-10
 python -m vietweb fw2-pii --n 10000
 ```
 
-`fw2-compare` ghi kết quả vào `outputs\eval\fineweb2_CC-MAIN-2024-10.md`:
-- Mức đồng thuận A và κ trên các URL có ở cả hai bên.
-- Bảng chéo giữa quyết định của pipeline và của FineWeb-2.
-- Các trang FineWeb-2 giữ mà pipeline loại, tách theo lý do loại.
-- Số URL của pipeline không có trong FineWeb-2, do khử trùng lặp toàn cục hoặc do không được nhận là `vie_Latn`.
-- Số trang tiếng Việt FineWeb-2 có trong cùng các file WARC nhưng pipeline chưa từng thu thập. Đây là số trang bộ lọc sơ bộ CLD2 (hoặc điều kiện ≥ 200 ký tự) bỏ sót.
+- `fw2-urls` không tải cả file FineWeb-2 (`vie_Latn` khoảng 130 GB, `vie_Latn_removed` khoảng 178 GB) mà chỉ đọc qua mạng các cột `url`, `dump`, `file_path` (và lý do loại) rồi giữ các dòng của một bản crawl. Kết quả ở `data\fineweb2\CC-MAIN-2024-10\`; bị ngắt thì chạy lại, file đã xong không đọc lại. Bị lỗi 429 thì đăng nhập bằng `huggingface-cli login`.
+- `fw2-compare` ghép theo URL với `outputs\runs\wet_2024_10_50` và ghi `outputs\eval\fineweb2_CC-MAIN-2024-10.md`: độ phủ, mức đồng thuận A và κ, bảng chéo quyết định, các trang hai bên bất đồng theo lý do loại, số trang tiếng Việt của FineWeb-2 trong cùng các file WARC mà bộ lọc sơ bộ CLD2 bỏ sót.
+- `fw2-pii` đọc văn bản của 10.000 tài liệu `vie_Latn` rải trên 10 file và đếm các mẫu thông tin cá nhân của tầng 8.
 
-File `fineweb2_CC-MAIN-2024-10_examples.csv` có mẫu từng nhóm bất đồng để đọc tay.
-
-`fw2-pii` đọc văn bản của 10.000 tài liệu `vie_Latn`, lấy rải từ 10 file, rồi đếm các mẫu PII của tầng 8. FineWeb-2 chỉ ẩn email và IP, nên số điện thoại và dãy 12 số là phần đáng xem.
-
-## 5e. Mức trùng lặp (RQ2) và đơn vị shingle
+### 5.6. Thứ tự luật theo chi phí
 
 ```powershell
-python scripts\dedup_stats.py --run outputs\runs\wet_200_final --crawl CC-MAIN-2026-39
-python -m vietweb dedup-eval --n 3000 --units syllable:3,syllable:5,char:15 --processed-dir outputs\runs\wet_200_final\processed
+python scripts\time_quality_order.py --repeats 5
 ```
 
-- `dedup_stats.py` (vài giây): tóm tắt ba mức trùng lặp, tỉ lệ trùng trong cùng website, và tỉ lệ trùng theo số file → `outputs\eval\dedup_stats_wet_200_final.md` (kết quả đã ghi ở `LUAT_LOC.md`, mục 13).
-- `dedup-eval`: với mỗi đơn vị shingle, so MinHash-LSH với Jaccard chính xác trên mọi cặp của 3.000 tài liệu đã làm sạch → precision, recall, F1 và thời gian → `outputs\eval\dedup_units.csv`. Số cặp tăng theo bình phương số tài liệu: ước tính 20–30 phút, phần lớn cho `char:15`. Thêm `word:5` nếu đã cài `underthesea`.
+Chạy ngay sau lần chạy `wet_200_final` (đọc `data\processed` và `outputs\stats`). Script chạy tầng 7 ở chế độ dừng tại luật vi phạm đầu tiên (`save_stats: false`), luân phiên thứ tự hiện tại và thứ tự sắp theo (1 − p)/c, in trung vị và kiểm tra tập tài liệu được giữ giống nhau. Script luôn chạy một tiến trình. Kết quả dao động khi máy đang chạy việc khác.
 
-## 6. Lịch công việc theo tuần
-
-| Tuần | Việc | Lệnh / file liên quan |
-|---|---|---|
-| 1–2 | Mục 1–5 ở trên; đọc paper | `collect --n-files 10`, `run` |
-| 3–5 | Tăng lên 50 file; **bỏ boilerplate (tầng 3b) và đối chiếu với WARC + trafilatura (mục 5b)**; đọc tài liệu bị loại theo từng lý do; bổ sung từ dừng, từ khóa spam | `collect --n-files 50`, `reference`, `extract-eval`, `peek`, `configs/*.txt` |
-| 6–7 | Tăng lên 200 file; vẽ phân phối chỉ số **trên văn bản đã qua tầng 3b**, đề xuất ngưỡng tiếng Việt; chạy `order-filters`; **báo cáo giữa kỳ** | `plot_report_figures.py`, `configs/vie_thresholds.yaml`, `order-filters` |
-| 8–10 | Chuyển sang GlotLID; chuyển đổi TCVN3/VNI (`text/normalize.py: convert_legacy`); đơn vị `word` (underthesea); danh sách chặn UT1; Spark trong WSL2; mở rộng 1.000+ file | mục 7, mục 8 |
-| 11–12 | Gán nhãn và đánh giá; so sánh đơn vị shingle; đối chiếu FineWeb-2 (`eval/fineweb2.py`); đo thời gian thật với `save_stats: false` | `sample-labels`, `score-labels`, `dedup-eval` |
-| 13–15 | Dashboard, dataset card (`docs/dataset_card.md`), điền báo cáo | `report/CONTENTS.md` |
-
-Lệnh cho tuần 11–12:
+### 5.7. Chạy song song và chạy trên Spark
 
 ```powershell
-python -m vietweb sample-labels --per-reason 150        # -> outputs\eval\labels_to_annotate.csv
-# Hai người điền cột label_a, label_b: 1 = kém chất lượng, 0 = chấp nhận được
-python -m vietweb score-labels outputs\eval\labels_to_annotate.csv
-python -m vietweb dedup-eval --n 3000 --units syllable:5,word:5,char:15
+python scripts\bench_parallel.py --n 10000 --workers 1 2 4 8 12
 ```
 
-## 7. Cấu hình hay chỉnh (`configs/pipeline.yaml`)
+Đo tầng 3 (ftfy trên cả văn bản và ftfy theo dòng) và tầng 3b với số tiến trình khác nhau trên 10.000 tài liệu thô (seed 42) → `outputs\eval\parallel_bench.csv`. Số tiến trình của pipeline đặt ở `parallel.workers`; từ 1.000 file trở lên đặt `memory.batch_files: 50` để tầng 3–5 chạy theo từng nhóm 50 file thô.
 
-| Mục | Ý nghĩa | Khi nào đổi |
-|---|---|---|
-| `stages` | Thứ tự các tầng | Thử nghiệm thứ tự tầng |
-| `boilerplate.method`, `length_high`, `stopwords_low`, `stopwords_high` | Tầng 3b: phương pháp (`justext` / `c4_lines` / `none`) và tham số | Sau khi chạy `extract-eval` (mục 5b) |
-| `boilerplate.c4_drop_ellipsis` | Tầng 3b, phương pháp `c4_lines`: bỏ cả dòng kết thúc bằng "..." hoặc "…" | Muốn giữ đúng luật gốc của C4 thì đặt `false` |
-| `dedup.line.min_domains` | Tầng 6: xóa dòng xuất hiện trên từ chừng này tên miền trở lên (0 = tắt) | Khi tăng số file: xem `cross_site_top` trong cột `details` của `funnel.csv` để chắc các dòng bị xóa đều là boilerplate |
-| `langid.backend` | `heuristic` (mặc định, không cần mô hình) / `fasttext` / `glotlid` | Tuần 8–10 chuyển sang `glotlid` |
-| `quality.unit` | Đếm "từ" theo `syllable` hay `word` | RQ1 (`word` cần `pip install underthesea`, chậm hơn nhiều) |
-| `dedup.near.unit`, `ngram` | Đơn vị shingle cho MinHash | RQ1 (ví dụ `char` với `ngram: 15`) |
-| `quality.rule_order` | Thứ tự luật chất lượng | Dán kết quả của `order-filters` (RQ4) |
-| `quality.save_stats` | `true`: tính mọi chỉ số; `false`: dừng ở luật đầu tiên vi phạm | `false` khi đo thời gian thật cho Bảng 8 |
-| `normalize.legacy_encoding_action` | `flag` hoặc `drop` văn bản TCVN3/VNI | Sau khi có bộ chuyển đổi |
-
-**Nhận diện ngôn ngữ bằng mô hình (tuần 8–10):**
-
-```powershell
-pip install fasttext-wheel huggingface_hub
-python -c "from huggingface_hub import hf_hub_download; print(hf_hub_download('cis-lmu/glotlid', 'model.bin', local_dir='models'))"
-```
-
-Sau đó đặt `langid.backend: glotlid` và `langid.model_path: models/model.bin`. Muốn dùng fastText lid.176 thì tải `https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin` vào `models\` và đặt `backend: fasttext`.
-
-## 8. Chuyển sang Spark (tuần 8–10)
-
-Bản hiện tại xử lý trong bộ nhớ bằng pandas, đủ cho vài chục nghìn tài liệu. Khi lên 1.000+ file (khoảng 200–400 nghìn tài liệu), `run` có thể thiếu RAM; tạm thời dùng `--limit` hoặc chạy từng `--crawl`.
-
-PySpark trên Windows cần Java và winutils, rất dễ lỗi. Cách ít rắc rối nhất là chạy trong WSL2:
-
-```powershell
-wsl --install -d Ubuntu      # một lần, cần khởi động lại máy
-```
-
-Trong Ubuntu (WSL):
+Spark: PySpark trên Windows cần Java và winutils, nên chạy trong WSL2 (Ubuntu). Trong Ubuntu:
 
 ```bash
 sudo apt update && sudo apt install -y openjdk-17-jre-headless python3-venv
-cd /mnt/e/Dien/Saudh/uit/mon_hoc/data_processing/Project/vietweb
+cd /mnt/<ổ đĩa>/<đường dẫn tới>/vietweb
 python3 -m venv .venv-wsl && source .venv-wsl/bin/activate
-pip install -r requirements.txt pyspark && pip install -e .
-python -c "from vietweb.spark_runner import run_per_doc_stages_spark; run_per_doc_stages_spark()"
+pip install -r requirements.txt pyspark==4.0.1
+export PYTHONPATH=src
+python -m vietweb.spark_runner --cores 8 --out data/spark_out
+python scripts/compare_runs.py outputs/runs/wet_1000/processed data/spark_out     # mong đợi IDENTICAL (đã kiểm trên 55 file)
+python -m vietweb.spark_runner --cores 1 2 4 8 --out data/spark_out            # thông lượng theo số lõi
 ```
 
-`spark_runner.py` là khung **chưa kiểm thử**: đã có phần chạy các tầng theo từng tài liệu bằng `mapInPandas`; phần khử trùng lặp trên Spark (groupBy sha1, banding MinHash) cần viết thêm.
+- `spark_runner.py` chạy tầng 3–9 với kết quả giống `python -m vietweb run`: tầng theo từng tài liệu chạy bằng `mapInPandas`; trùng chính xác dùng cửa sổ theo SHA-1; trùng gần đúng tìm các dải MinHash có ở hơn một tài liệu rồi duyệt các tài liệu đó theo thứ tự như tầng 6.
+- Kết quả ở `data/spark_out/` (`kept`, `dropped`, `funnel.csv`, `run_info.json`, `spark_runs.csv` với số giây từng pha và số tài liệu mỗi giây).
+- Dùng Spark 4.0: Spark 3.5 lỗi ở `mapInPandas` khi chạy với Java 21. WSL mặc định dùng tối đa một nửa RAM; thiếu bộ nhớ thì thêm `--driver-memory 3g`.
 
-## 9. Lỗi thường gặp
+### 5.8. GlotLID và bảng mã TCVN3/VNI
+
+```powershell
+pip install fasttext-wheel huggingface_hub
+python scripts\langid_compare.py --download            # tải mô hình GlotLID (khoảng 1,6 GB) vào models\glotlid\
+python scripts\langid_compare.py --workers 0
+python scripts\legacy_eval.py --processed outputs\runs\wet_200_final\processed --n 2000
+python scripts\legacy_scan.py --n-files 5
+```
+
+- `langid_compare.py` chạy tầng 3–3b trên dữ liệu thô của bản crawl trong cấu hình, rồi so heuristic với xác suất `vie_Latn` của GlotLID ở nhiều ngưỡng. Số trong báo cáo đo khi `data\raw\CC-MAIN-2026-39` có 200 file (37.456 tài liệu vào tầng 4).
+- `legacy_eval.py`: thử tổng hợp (viết lại 2.000 tài liệu sạch bằng TCVN3 và VNI rồi cho tầng 3 khôi phục) và đếm số tài liệu thật được chuyển. `--skip-real` chỉ chạy phần tổng hợp.
+- `legacy_scan.py`: tải 5 file WET khác (seed 7), đọc mọi bản ghi của mọi ngôn ngữ và đếm bản ghi mà tầng 3 sẽ chuyển.
+
+### 5.9. Mô hình chất lượng, rò rỉ VMLU, mô hình ngôn ngữ nhỏ
+
+```powershell
+python scripts\quality_model.py --download             # tải các file Wikipedia tiếng Việt (bản 20231101) vào data\wikipedia
+python scripts\quality_model.py
+python scripts\benchmark_overlap.py data\benchmarks\vmlu --name VMLU --processed outputs\runs\wet_1000\processed
+```
+
+- `quality_model.py`: bộ phân loại fastText Wikipedia/web và mô hình trigram âm tiết, học trên 15.000 bài Wikipedia dài từ 1.000 ký tự (sau luật dòng của tầng 3b) và 15.000 tài liệu vào tầng 7; chấm trên các trang có nhãn của mục 5.2.
+- VMLU: tải file zip ở https://vmlu.ai (mục Data), giải nén vào `data\benchmarks\vmlu`. Script so mọi trường văn bản của từng câu với tài liệu giữ lại theo dãy 13 và 8 âm tiết, sau khi chuẩn hóa hai phía như tầng 3.
+
+Mô hình ngôn ngữ nhỏ (cần `torch`, `tokenizers`):
+
+```powershell
+python scripts\lm_ablation.py prepare --processed outputs\runs\wet_200_final\processed
+python scripts\lm_ablation.py train --corpus raw   --seed 0 --preset cpu
+python scripts\lm_ablation.py train --corpus clean --seed 0 --preset cpu
+python scripts\lm_ablation.py train --corpus raw   --seed 1 --preset cpu
+python scripts\lm_ablation.py train --corpus clean --seed 1 --preset cpu
+python scripts\lm_ablation.py report
+```
+
+- `prepare` ghi vào `data\lm\`: kho "thô" (văn bản WET của mọi tài liệu vào lần chạy), kho "sạch" (tài liệu được giữ), một tokenizer BPE 16.000 từ vựng học trên lượng ký tự bằng nhau từ hai kho, và bốn tập đo: Wikipedia sau luật dòng 3b, Wikipedia nguyên văn, web sạch, web thô (500 nghìn token mỗi tập).
+- Preset `cpu`: GPT 4 lớp, 256 chiều, 7,3 triệu tham số, ngữ cảnh 128 token, đúng 3 triệu token mỗi lần huấn luyện; khoảng 24 phút mỗi lần trên 2 lõi CPU. Bước `train` chỉ cần `torch` và `numpy`, nên chạy được trên Colab sau khi tải lên `data\lm` và file script.
+- `report` ghi `outputs\eval\lm_ablation.md` và các file `lm_ablation_<kho>_s<seed>_cpu.csv/json`.
+
+Một số số đo phụ trong `LUAT_LOC.md` được tính bằng lệnh tạm trên đầu ra của các script trên, chưa có script riêng:
+- phân loại thô 437 trang mà GlotLID giữ còn heuristic loại (mục 14.3);
+- số trang khớp từ khóa cờ bạc không dấu trên `wet_1000` (mục 14.3);
+- tỉ lệ câu hỏi VMLU nằm trong trang khớp (mục 14.7);
+- tỉ lệ trang kém theo phần tư điểm P(web) (mục 14.5).
+
+### 5.10. Hình trong báo cáo
+
+```powershell
+python scripts\plot_results_figures.py --out ..\report\figures
+python scripts\plot_results_figures.py --out ..\report\ieee\figures --column
+```
+
+Số liệu trong hình được chép từ `LUAT_LOC.md` (mục 7.4 và 14.6) vào đầu script. `--column` vẽ bản một cột cho bản báo cáo 5 trang.
+
+## 6. Ứng dụng demo và dashboard
+
+```powershell
+pip install streamlit
+streamlit run dashboard\demo.py
+```
+
+Trình duyệt mở `http://localhost:8501`. Ứng dụng không cần mạng và có bốn trang:
+
+| Trang | Nội dung |
+|---|---|
+| Thử một trang | Chạy tầng 3, 3b, 4, 5, 7, 8 trên một trang bằng đúng mã của pipeline (`src/vietweb/explain.py`) và cấu hình `configs/pipeline.yaml`: dòng bị bỏ kèm lý do, điểm tiếng Việt, từ khóa spam, bảng 16 luật chất lượng, văn bản sau khi che thông tin cá nhân. Nguồn trang: 6 ví dụ có sẵn (mỗi ví dụ dừng ở một tầng khác nhau), một bản ghi WET thật lấy ngẫu nhiên trong `data/raw`, hoặc văn bản tự dán. |
+| Trùng lặp gần đúng | MinHash-LSH trên hai văn bản với cấu hình tầng 6 (14 dải × 8 hàng): Jaccard thật, ước lượng MinHash, dải trùng, đường xác suất thành ứng viên. |
+| Kết quả | Phễu 200 và 1.000 file, trùng lặp theo số file, tốc độ, bản Spark, và các file `outputs/eval/*.md`. |
+| Duyệt dữ liệu | Tài liệu giữ lại và bị loại của một lần chạy (`outputs/runs/*/processed` hoặc `data/processed`). |
+
+- Quyết định của trang "Thử một trang" khớp với chạy các tầng thật trên cùng văn bản: `pytest tests\test_explain.py`.
+- Tầng 6 cần cả kho dữ liệu nên không có trong trang "Thử một trang"; trang này chỉ hiện khóa SHA-1 dùng cho trùng chính xác.
+- Bản ghi WET thật có thể chứa số điện thoại hoặc email thật.
+- `streamlit run dashboard\app.py` mở dashboard chỉ để duyệt kết quả của lần chạy gần nhất.
+
+## 7. Cấu hình (`configs/pipeline.yaml`)
+
+| Khóa | Ý nghĩa |
+|---|---|
+| `collect.crawl`, `seed` | Bản crawl mặc định; seed chọn file và lấy mẫu (42) |
+| `stages` | Thứ tự các tầng |
+| `normalize.legacy_encoding_action` | `convert`: chuyển TCVN3/VNI sang Unicode khi bản giải mã đọc được như tiếng Việt; `flag`: chỉ ghi điểm; `drop`: loại |
+| `boilerplate.method` | Tầng 3b: `c4_lines` (đang dùng), `justext` hoặc `none` |
+| `boilerplate.c4_drop_ellipsis` | `c4_lines`: bỏ cả dòng kết thúc bằng "..." hoặc "…"; `false` để giữ đúng luật gốc của C4 |
+| `langid.backend`, `langid.model_path` | `heuristic` (đang dùng), `glotlid` (`models/glotlid/model.bin`) hoặc `fasttext` (lid.176) |
+| `dedup.near.unit`, `dedup.near.ngram` | Đơn vị và độ dài shingle cho MinHash (đang dùng: âm tiết, 5) |
+| `dedup.line.min_domains` | Xóa dòng xuất hiện trên từ chừng này tên miền trở lên (0 = tắt) |
+| `quality.unit` | Đếm "từ" theo `syllable` (đang dùng) hoặc `word` (cần underthesea) |
+| `quality.rule_order` | Thứ tự luật chất lượng |
+| `quality.save_stats` | `true`: tính mọi chỉ số (cần cho mục 5.2); `false`: dừng ở luật vi phạm đầu tiên |
+| `parallel.workers` | Số tiến trình cho các tầng xử lý từng tài liệu |
+| `memory.batch_files` | Số file thô mỗi nhóm cho tầng 3–5 (0 = đọc tất cả một lần) |
+
+Ngưỡng của 17 luật chất lượng nằm trong `configs/vie_thresholds.yaml`; từ dừng và danh sách chặn nằm trong `configs/*.txt`.
+
+## 8. Lỗi thường gặp
 
 | Hiện tượng | Cách xử lý |
 |---|---|
 | `UnicodeEncodeError` hoặc chữ tiếng Việt bị lỗi trên console | `$env:PYTHONUTF8 = "1"` |
-| Lỗi 403 / 503 / timeout khi `collect` | Code tự thử lại; nếu vẫn lỗi, chờ một lúc rồi chạy lại (file đã xong không tải lại) |
+| Lỗi 403 / 503 / timeout khi `collect` | Code tự thử lại; nếu vẫn lỗi, chạy lại lệnh sau (file đã xong không tải lại) |
 | `FileNotFoundError: No Parquet files found` | Chưa chạy `collect`, hoặc `--crawl` sai tên |
-| `MemoryError` khi `run` | Dùng `--limit 20000` hoặc `--crawl`; về lâu dài chuyển sang Spark |
-| Excel hiển thị sai tiếng Việt trong CSV | File đã ghi UTF-8 có BOM; nếu vẫn lỗi, mở bằng Data → From Text/CSV, chọn UTF-8 |
-| Muốn chạy lại từ đầu | Xóa `data\raw\<crawl>`, `data\processed`, `outputs` |
+| `MemoryError` khi `run` | Đặt `memory.batch_files`, dùng `--crawl` hoặc `--limit`, hoặc chạy bản Spark (mục 5.7) |
+| Excel hiển thị sai tiếng Việt trong CSV | Mở bằng Data → From Text/CSV, chọn UTF-8 |
 | `ImportError: The reference command needs trafilatura` | `pip install -r requirements.txt` |
 | `reference` báo `Not a Common Crawl WET path` | Dữ liệu lấy bằng `collect-local` không có file WARC; chỉ dùng với dữ liệu từ `collect` |
-| Muốn chạy lại pipeline như trước khi có tầng 3b | Đặt `boilerplate.method: none` trong `configs/pipeline.yaml` |
-
-## 10. Trạng thái khung code
-
-| Thành phần | Trạng thái |
-|---|---|
-| Thu thập WET (thử lại, manifest, lọc sơ bộ CLD2) | Chạy được, có test |
-| Chuẩn hóa NFC, ftfy, dấu thanh | Chạy được, có test |
-| Phát hiện TCVN3/VNI | Bộ phát hiện đơn giản; **chuyển đổi chưa viết** (`convert_legacy`) |
-| Bỏ boilerplate trên WET (tầng 3b: `c4_lines`, phương án jusText) | Chạy được, có test; đã chọn phương pháp bằng `extract-eval` trên 3 file WARC (26/10/2026); cần chạy lại 50 file |
-| Bản tham chiếu WARC + trafilatura, so sánh với tầng 3b | Chạy được với máy chủ giả lập (có test); **chưa chạy với Common Crawl thật** |
-| Nhận diện ngôn ngữ | `heuristic` chạy được; `fasttext`/`glotlid` đã viết, cần tải mô hình |
-| Lọc URL / từ khóa | Chạy được; danh sách còn sơ sài |
-| Khử trùng lặp chính xác, MinHash-LSH, cấp dòng | Chạy được trong bộ nhớ; bản Spark chưa viết |
-| 17 luật chất lượng + đo chi phí từng luật | Chạy được; đã hiệu chỉnh trên 200 file ngày 28/10/2026: đổi 2 ngưỡng, tắt `fineweb_dup_line_chars` (`LUAT_LOC.md`, mục 7.4) |
-| Che PII (email, IPv4, số điện thoại, CCCD) | Chạy được; cần đo tỉ lệ nhận nhầm |
-| Funnel, xuất Parquet, kiểm tra đầu ra | Chạy được |
-| Gợi ý thứ tự luật (RQ4) | Chạy được |
-| Gán nhãn, precision, kappa, so sánh shingle | Chạy được |
-| Đối chiếu FineWeb-2 | Hàm tính đồng thuận đã có; **phần tải dữ liệu chưa viết** |
-| Dashboard Streamlit | Chạy được |
-| Spark, Prefect | Khung, **chưa kiểm thử** |
+| Chạy lại pipeline như khi chưa có tầng 3b | Đặt `boilerplate.method: none` |

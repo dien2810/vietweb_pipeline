@@ -107,7 +107,7 @@ def main() -> None:
     line = json.loads(funnel.loc["dedup_line", "details"])
     entering = docs.groupby("domain").size()
 
-    sizes_list = [s for s in (25, 50, 100, 150) if s < n_files] + [n_files]
+    sizes_list = [s for s in (25, 50, 100, 150, 200, 400, 600, 800) if s < n_files] + [n_files]
     curve = scale_curve(docs, n_files, sizes_list, a.repeats, cfg.get("seed", 42))
 
     def pct(x, n):

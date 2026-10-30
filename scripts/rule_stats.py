@@ -59,7 +59,7 @@ def run_header(stats_dir: Path) -> str:
     if not p.exists():
         return ""
     info = json.loads(p.read_text(encoding="utf-8"))
-    return (f"Run finished {info.get('finished_utc')} (UTC): {info.get('n_input')} documents in, "
+    return (f"Run: {info.get('n_input')} documents in, "
             f"{info.get('n_kept')} kept; langid={info.get('langid_backend')}, "
             f"quality unit={info.get('quality_unit')}, near-dup unit={info.get('near_dup_unit')}.")
 

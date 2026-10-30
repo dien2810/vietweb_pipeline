@@ -1,10 +1,9 @@
 """Generate report figures from outputs/stats/ into report/figures/ (or the folder given by --out).
 
 Available:
-- fig_funnel.pdf        Figure 3: document funnel through the stages
-- fig_calibration.pdf   Figure 4: distribution of mean word length (for calibrating the Gopher threshold)
+- fig_funnel.pdf        Document funnel through the stages
+- fig_calibration.pdf   Distribution of mean word length (for calibrating the Gopher threshold)
 - fig_rule_hist.pdf     Distribution of every quality metric (internal use when choosing thresholds)
-TODO: Figure 1 (data profile), Figure 5 (duplicate clusters), Figure 6 (speed-up by number of cores).
 
 Run: python scripts/plot_report_figures.py --out ../report/figures
 """

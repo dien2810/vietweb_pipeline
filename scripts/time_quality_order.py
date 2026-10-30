@@ -63,6 +63,7 @@ def main() -> None:
             run_cfg = copy.deepcopy(cfg)
             run_cfg["quality"]["save_stats"] = False
             run_cfg["quality"]["rule_order"] = order
+            run_cfg["parallel"] = {"workers": 1}    # one process, so the rule costs are not affected by other processes
             t0 = time.perf_counter()
             res = s07_quality.run(docs[["text"]], run_cfg)
             times[name].append(time.perf_counter() - t0)

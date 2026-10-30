@@ -1,0 +1,12 @@
+stage,docs_in,docs_out,removed,seconds,top_reason,details,pct_of_input
+input,48815,48815,0,0.0,,,100.0
+normalize,48815,48815,0,146.247,,"{""modified_docs"": 48810, ""legacy_flagged"": 31, ""legacy_converted_tcvn3"": 0, ""legacy_converted_vni"": 0}",100.0
+boilerplate,48815,37456,11359,11.942,boilerplate_too_short,"{""method"": ""c4_lines"", ""removed_lines"": 9218108, ""removed_char_share"": 0.6572, ""too_short"": 11359, ""too_short_cld2_not_vie"": 2672}",76.73
+langid,37456,33396,4060,5.825,langid_low_score,"{""backend"": ""heuristic"", ""threshold"": 0.6, ""mean_score"": 0.8887230003203759}",68.41
+url_filter,33396,31152,2244,2.708,spam_keywords,"{""domain_blocked"": 0, ""keyword_blocked"": 2244}",63.82
+dedup_exact,31152,30147,1005,6.337,exact_duplicate,"{""exact_duplicates"": 1005}",61.76
+dedup_near,30147,29134,1013,19.354,near_duplicate,"{""near_duplicates"": 1013, ""unit"": ""syllable"", ""ngram"": 5}",59.68
+dedup_line,29134,28948,186,8.405,empty_after_line_dedup,"{""removed_lines"": 48098, ""removed_lines_same_domain"": 36704, ""removed_lines_cross_site"": 11394, ""min_domains"": 20, ""cross_site_distinct_lines"": 73, ""docs_with_cross_site_lines"": 5809, ""cross_site_top"": [""1704 domains: Chưa có sản phẩm trong giỏ hàng."", ""1516 domains: Lưu tên của tôi, email, và trang web trong trình duyệt này c"", ""805 domains: Chưa có đánh giá nào."", ""401 domains: This site is protected by reCAPTCHA and the Google Privacy P"", ""286 domains: Website chỉ làm việc khi bạn bật nó trở lại.""]}",59.3
+quality,28948,25255,3693,127.359,gopher_word_count,"{""unit"": ""syllable"", ""save_stats"": true, ""prepare_seconds"": 20.2548}",51.74
+pii,25255,25255,0,15.003,,"{""masked_email"": 442, ""masked_ipv4"": 173, ""masked_phone_vn"": 3651, ""masked_cccd"": 23}",51.74
+export,25255,25255,0,25.003,,,51.74

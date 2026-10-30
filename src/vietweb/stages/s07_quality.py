@@ -13,11 +13,13 @@ from __future__ import annotations
 import time
 from collections import Counter
 from dataclasses import dataclass
+from functools import partial
 from typing import Callable
 
 import pandas as pd
 
 from ..config import load_wordlist, load_yaml, resolve
+from ..parallel import pmap
 from ..text.tokenize import tokens
 from .base import StageResult
 
@@ -85,44 +87,55 @@ RULES: dict[str, tuple[Metric, Decide]] = {
 }
 
 
+def evaluate(text: str, order: tuple[str, ...], thresholds: dict, stopwords: frozenset, unit: str,
+             save_stats: bool) -> tuple:
+    """Apply the rules to one document. Runs in worker processes when parallel.workers > 1.
+
+    Returns (reason, metric values, seconds per rule, rules evaluated, rules passed, preparation seconds);
+    the last four are summed over documents for filter_costs.csv (RQ4). With several processes the seconds
+    are CPU time spread over the workers, so the cost per document stays comparable to a single process."""
+    t0 = time.perf_counter()
+    doc = Doc(text=text, toks=tokens(text, unit), lines=[ln for ln in text.split("\n") if ln.strip()],
+              stopwords=stopwords)
+    prep = time.perf_counter() - t0
+    reason = None
+    values, secs, evaluated, passed = [], [], [], []
+    for rule in order:
+        if reason is not None and not save_stats:
+            values.append(None); secs.append(0.0); evaluated.append(False); passed.append(False)
+            continue
+        metric, decide = RULES[rule]
+        t1 = time.perf_counter()
+        v = metric(doc)
+        fail = decide(v, thresholds.get(rule, {}))
+        secs.append(time.perf_counter() - t1)
+        evaluated.append(True)
+        passed.append(not fail)
+        values.append(round(v, 5))
+        if fail and reason is None:
+            reason = rule
+    return reason, values, secs, evaluated, passed, prep
+
+
 def run(df: pd.DataFrame, cfg: dict) -> StageResult:
     c = cfg["quality"]
     thresholds = load_yaml(resolve(cfg, c["thresholds_file"]))
-    stop = set(load_wordlist(resolve(cfg, c["stopwords_file"])))
-    order = [r for r in c.get("rule_order", list(RULES)) if thresholds.get(r, {}).get("enabled", True)]
+    stop = frozenset(load_wordlist(resolve(cfg, c["stopwords_file"])))
+    order = tuple(r for r in c.get("rule_order", list(RULES)) if thresholds.get(r, {}).get("enabled", True))
     unknown = [r for r in order if r not in RULES]
     if unknown:
         raise ValueError(f"Unknown rules: {unknown}")
     save_stats = c.get("save_stats", True)
     unit = c.get("unit", "syllable")
 
-    evaluated = Counter()
-    passed = Counter()
-    seconds = Counter()
-    prep_seconds = 0.0
-    reasons, metrics = [], {r: [] for r in order}
-
-    for text in df["text"]:
-        t0 = time.perf_counter()
-        doc = Doc(text=text, toks=tokens(text, unit),
-                  lines=[ln for ln in text.split("\n") if ln.strip()], stopwords=stop)
-        prep_seconds += time.perf_counter() - t0
-        reason = None
-        for rule in order:
-            if reason is not None and not save_stats:
-                metrics[rule].append(None)
-                continue
-            metric, decide = RULES[rule]
-            t1 = time.perf_counter()
-            v = metric(doc)
-            fail = decide(v, thresholds.get(rule, {}))
-            seconds[rule] += time.perf_counter() - t1
-            evaluated[rule] += 1
-            passed[rule] += not fail
-            metrics[rule].append(round(v, 5))
-            if fail and reason is None:
-                reason = rule
-        reasons.append(reason)
+    out = pmap(partial(evaluate, order=order, thresholds=thresholds, stopwords=stop, unit=unit,
+                       save_stats=save_stats), df["text"].tolist(), cfg)
+    reasons = [o[0] for o in out]
+    metrics = {r: [o[1][i] for o in out] for i, r in enumerate(order)}
+    seconds = {r: sum(o[2][i] for o in out) for i, r in enumerate(order)}
+    evaluated = {r: sum(o[3][i] for o in out) for i, r in enumerate(order)}
+    passed = {r: sum(o[4][i] for o in out) for i, r in enumerate(order)}
+    prep_seconds = sum(o[5] for o in out)
 
     costs = [{
         "rule": r,

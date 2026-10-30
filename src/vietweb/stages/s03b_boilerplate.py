@@ -26,10 +26,12 @@ A document whose remaining text is shorter than min_chars_after is dropped ("boi
 from __future__ import annotations
 
 import re
+from functools import partial
 
 import pandas as pd
 
 from ..config import load_wordlist, resolve
+from ..parallel import pmap_series
 from ..text.tokenize import syllables
 from .base import StageResult
 
@@ -158,7 +160,7 @@ def load_params_and_stopwords(cfg: dict) -> tuple[dict, set[str]]:
 
 def run(df: pd.DataFrame, cfg: dict) -> StageResult:
     p, stop = load_params_and_stopwords(cfg)
-    new_text = df["text"].map(lambda t: clean_text(t, p, stop))
+    new_text = pmap_series(partial(clean_text, p=p, stopwords=stop), df["text"], cfg)
     old_chars = df["text"].str.len()
     new_chars = new_text.str.len()
     ratio = (new_chars / old_chars.where(old_chars > 0, 1)).round(4)

@@ -1,0 +1,2 @@
+step,tokens,train_loss,val_wiki,val_web,val_raw,val_wiki_full,seconds
+732,2998272,5.9047,6.5973,5.9659,5.9446,6.7089,1263.2

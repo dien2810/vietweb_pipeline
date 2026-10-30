@@ -1,7 +1,4 @@
-"""Output checks before export (minimal version without Pandera).
-
-Weeks 8-10: port these checks to a Pandera schema if desired (pip install pandera).
-"""
+"""Output checks before export (plain pandas; the same checks could be written as a Pandera schema)."""
 from __future__ import annotations
 
 import pandas as pd
